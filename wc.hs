@@ -5,7 +5,9 @@ import Data.Char hiding (isSpace)
 import Data.List (reverse)
 import GHC.Exts (sortWith)
 import Control.Monad (forM, liftM)
-import qualified Data.HashTable.IO as H
+import Control.Monad.ST
+import qualified Data.HashTable.ST.Linear as HL
+import qualified Data.HashTable.Class as H
 import System.Environment
 import System.TimeIt
 import Text.Printf
@@ -22,25 +24,27 @@ words s = let clean = dropWhile isSpace s in
         str -> first : (words rest)
             where (first, rest) = span isLetter str 
 
-type HashTable k v = H.LinearHashTable k v
+-- Alias for the Linear-type hash table
+type HashTable s k v = HL.HashTable s k v
 
---Counts frequencies of strings in a list in the IO monad
-counts :: [String] -> IO ( [(String, Int)] )
+--Counts frequencies of strings in a list using the ST monad
+counts :: [String] -> [(String, Int)] 
 counts words = let size = length words in
-               do lexicon <- H.newSized size :: IO (HashTable String Int)
-                  forM words (increment lexicon)
-                  H.toList lexicon
+               runST $ do 
+                       lexicon <- H.newSized size ::  ST s (HashTable s String Int)
+                       forM words (increment lexicon) 
+                       H.toList lexicon
 
 --Increment hashtable value for a key or create value 1 for new key
+increment :: HashTable s String Int -> String -> ST s () 
 increment ht key = do cur <- H.lookup ht key
                       case cur of
                            Nothing -> H.insert ht key 1
                            Just n  -> H.insert ht key (n+1)
 
 --Words of a text together with their frequencies, sorted highest->lowest
---(result of counts is in IO monad)
-wordFreqs :: String -> IO ( [(String,Int)] ) 
-wordFreqs = liftM (reverse . (sortWith snd)) . counts . words . (map toLower)
+wordFreqs :: String ->  [(String,Int)]  
+wordFreqs = reverse . sortWith snd . counts . words . (map toLower)
 
 main = timeIt proc --get running time
 
@@ -49,7 +53,7 @@ proc = do args <- getArgs
           let n = (read $ args!! 0) :: Int
           let filename  = args!! 1
           text   <- readFile filename
-          result <- wordFreqs text
+          let result = wordFreqs text
           display $ take n result
           let wcount = length $ words text
           let uwords = length result
