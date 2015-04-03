@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Trie where
 
@@ -11,7 +12,7 @@ import Control.Monad
 import Text.Printf
 
 -- Will use existence of value to mark end of word
-data Trie c k v = Trie { value :: Maybe v, tails :: M.Map c (Trie c k v) }
+data Trie c v = Trie { value :: Maybe v, tails :: M.Map c (Trie c v) }
 
 -- Tries should be:
 --  * Foldable
@@ -19,14 +20,14 @@ data Trie c k v = Trie { value :: Maybe v, tails :: M.Map c (Trie c k v) }
 -- Monad not clear? Meaning?
 -- To handle String tries and ByteString tries
 
-class Ord k => Mapping m c k v where 
-    empty  :: m c k v
-    lookup :: m c k v -> k -> Maybe v
-    update :: (Maybe v -> Maybe v) -> m c k v -> k  -> m c k v 
-    delete :: m c k v -> k -> m c k v
-    toList :: m c k v -> [(k,v)]
+class Ord c => Mapping m c v where 
+    empty  :: m c v
+    lookup :: m c v -> [c] -> Maybe v
+    update :: (Maybe v -> Maybe v) -> m c v -> [c]  -> m c v 
+    delete :: m c v -> [c] -> m c v
+    toList :: m c v -> [([c],v)]
 
-instance Mapping Trie Char String v where
+instance Ord c => Mapping Trie c v where
 
     empty = Trie { value = Nothing, tails = M.empty }
 
@@ -45,28 +46,28 @@ instance Mapping Trie Char String v where
     delete = update (\_ -> Nothing) 
 
     toList trie = concat $ fmap builder $ M.toList $ tails trie where     
-        builder :: (Char, Trie Char String v) -> [(String,v)]
+        builder :: Ord c => (c, Trie c v) -> [([c],v)]
         builder (c,t) = case value t of
                            Nothing -> prefix c $ toList t 
                            Just v  -> ([c], v) : (prefix c $ toList t) 
                        where prefix c ll = fmap (\(s,v) -> (c:s,v)) ll   
 
-add :: v -> Trie Char String v -> String -> Trie Char String v
+add :: Ord c => v -> Trie c v -> [c] -> Trie c v
 add value = update (\_ -> Just(value)) 
 
 -- If key is repeated, then later value overrides earlier value
-fromList :: [(String,v)] -> Trie Char String v
+fromList :: Ord c => [([c],v)] -> Trie c v
 fromList = foldl (\ t (k,v) -> add v t k ) empty 
 
 -- Makes Trie into functor (on the value type)
-map :: (v -> u) -> Trie Char String v -> Trie Char String u
+map :: Ord c => (v -> u) -> Trie c v -> Trie c u
 map f t = Trie { value = liftM f $ value t, tails = M.map (Trie.map f) (tails t) }
 
-instance Show v => Show (Trie Char String v) where
+instance (Show v, Show [c], Ord c) => Show (Trie c v) where
     show t = summary ++ (display $ take 15 graph) where   
                  graph = toList t  
                  summary = printf "Trie with %v key-value pairs, starting with:\n" (length graph)
-                 display = concat  . fmap ( \(k,v) ->  printf "%15s :   %4v \n" k (show v) )
+                 display = concat  . fmap ( \(k,v) ->  printf "%15s :   %4v \n" (show k) (show v) )
 
 
 
