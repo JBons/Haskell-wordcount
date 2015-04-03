@@ -13,13 +13,7 @@ import Text.Printf
 -- Will use existence of value to mark end of word
 data Trie c k v = Trie { value :: Maybe v, tails :: M.Map c (Trie c k v) }
 
--- Library will be about ASCII Tries
-type BTrie v    = Trie B.ByteString Word8 v
-type STrie v    = Trie Char String v
---type MSTrie s v = Trie Char String (STRef s v) --THINK!!
-
 -- Tries should be:
---  * Functors
 --  * Foldable
 --  * Traversables
 -- Monad not clear? Meaning?
@@ -28,7 +22,7 @@ type STrie v    = Trie Char String v
 class Ord k => Mapping m c k v where 
     empty  :: m c k v
     lookup :: m c k v -> k -> Maybe v
-    update :: m c k v -> k -> (Maybe v -> Maybe v) -> m c k v 
+    update :: (Maybe v -> Maybe v) -> m c k v -> k  -> m c k v 
     delete :: m c k v -> k -> m c k v
     toList :: m c k v -> [(k,v)]
 
@@ -41,14 +35,14 @@ instance Mapping Trie Char String v where
         tail <- M.lookup c (tails trie)
         lookup tail cs    
     
-    update trie [] f     = trie { value = f  $ value trie }
-    update trie (c:cs) f = trie { tails = updated } where
+    update f trie []     = trie { value = f  $ value trie }
+    update f trie (c:cs) = trie { tails = updated } where
         updated = case M.lookup c (tails trie) of
-            Just sub -> M.update (\_ -> Just $ update sub cs f) c (tails trie)  
+            Just sub -> M.update (\_ -> Just $ update f sub cs) c (tails trie)  
             Nothing  -> M.insert c newbranch (tails trie) where
-                newbranch = update empty cs f
+                newbranch = update f empty cs
              
-    delete trie key = update trie key (\_ -> Nothing)
+    delete = update (\_ -> Nothing) 
 
     toList trie = concat $ fmap builder $ M.toList $ tails trie where     
         builder :: (Char, Trie Char String v) -> [(String,v)]
@@ -57,12 +51,12 @@ instance Mapping Trie Char String v where
                            Just v  -> ([c], v) : (prefix c $ toList t) 
                        where prefix c ll = fmap (\(s,v) -> (c:s,v)) ll   
 
-add :: Trie Char String v -> String -> v -> Trie Char String v
-add trie key value = update trie key (\_ -> Just(value))
+add :: v -> Trie Char String v -> String -> Trie Char String v
+add value = update (\_ -> Just(value)) 
 
 -- If key is repeated, then later value overrides earlier value
 fromList :: [(String,v)] -> Trie Char String v
-fromList = foldl (\ t (k,v) -> add t k v) empty 
+fromList = foldl (\ t (k,v) -> add v t k ) empty 
 
 -- Makes Trie into functor (on the value type)
 map :: (v -> u) -> Trie Char String v -> Trie Char String u
