@@ -58,6 +58,8 @@ add value = update (\_ -> Just(value))
 fromList :: Ord c => [([c],v)] -> Trie c v
 fromList = foldl (\ t (k,v) -> add v t k ) empty 
 
+instance (Ord c, Eq c, Eq v) => Eq (Trie c v) where
+    t1 == t2 = toList t1 == toList t2
 
 instance Ord c => Traversable (Trie c) where
    traverse f t = Trie <$> root <*> children  where
