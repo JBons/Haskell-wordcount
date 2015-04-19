@@ -69,6 +69,9 @@ instance Ord c => Traversable (Trie c) where
 instance Ord c => F.Foldable (Trie c) where
     foldMap = foldMapDefault
 
+-- Notice that (like with Data.Map et al.) Foldable.toList makes list of only values and unlike
+-- Trie.toList does NOT produce an association list (from which the trie can be reconstructed).
+
 instance Ord c => Monad (Trie c) where
     (>>=) t f = let tl = toList t in (fromList.concat) (map g tl) where
        g (k,v) = map (\(a,b) -> (k++a, b)) (toList (f v))
