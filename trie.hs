@@ -69,6 +69,9 @@ instance Ord c => Traversable (Trie c) where
 instance Ord c => F.Foldable (Trie c) where
     foldMap = foldMapDefault
 
+instance Ord c => Functor (Trie c) where
+    fmap = fmapDefault 
+--
 -- Notice that (like with Data.Map et al.) Foldable.toList makes list of only values and unlike
 -- Trie.toList does NOT produce an association list (from which the trie can be reconstructed).
 
@@ -80,9 +83,6 @@ instance Ord c => Monad (Trie c) where
 instance Ord c=> Applicative (Trie c) where
     (<*>) = ap
     pure  = return
-
-instance Ord c => Functor (Trie c) where
-    fmap f t = t >>= (return.f) 
 
 instance (Show v, Show [c], Ord c) => Show (Trie c v) where
     show t = summary ++ (display $ take 15 graph) where   
@@ -96,13 +96,3 @@ instance (Show v, Show [c], Ord c) => Show (Trie c v) where
 - for each key k in t with corresponding value v, take the keys ks of f v. Form new keys k's = (k ++ ks) 
 - by concatenating. Replace the key k in t with the keys k's and give them values from (f v).
 -}
-
-
-
-
--- OLD code
-
--- Depreciated direct functor definition. Still to check that the monad definition is always identical 
---instance Functor (Trie c) where
---    fmap f t = Trie { value = liftM f $ value t, tails = M.map (fmap f) (tails t) }
-
