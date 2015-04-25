@@ -30,14 +30,19 @@ monad3 alm alf alg = ((m >>= f) >>= g) == (m >>= (\x -> f x >>= g)) where
 traversable1 :: [(String, Int)] -> Bool
 traversable1 = (\t -> runIdentity (traverse Identity t) == runIdentity (Identity t)).fromList
 
--- Still to do
-traversable2 = undefined --traverse (Compose . fmap g . f) == Compose . fmap (traverse g) . traverse f
+-- Law2 in terms of sequenceA
+traversable2 :: [(String,[(String, String)])] -> Bool
+traversable2 s = getCompose ((sequenceA . fmap Compose) t) == (fmap sequenceA . sequenceA) t  where
+    t = (fromList $ map (\(s,l) -> (s,fromList l)) s) :: TR (TR [Char])
 
+type TR a = Trie Char a
+
+a = stdArgs {maxSuccess = 10, maxSize = 10} 
 
 main = do
-    quickCheck monad1
-    quickCheck monad2
-    quickCheck monad3
+    quickCheckWith a monad1
+    quickCheckWith a monad2
+    quickCheckWith a monad3
 
-    quickCheck traversable1
-    --quickCheck traversable2
+    quickCheckWith a traversable1
+    quickCheckWith a traversable2
