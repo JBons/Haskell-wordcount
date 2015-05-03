@@ -1,51 +1,26 @@
-/*  Fast word counter function to be called from Haskell code
+/*  Fast word counter function 
  *
  *  Implemented as a custom-built fast trie, which uses fixed-size
  *  pointer arrays for child nodes, indexed by the lower-case 
  *  ASCII characters [a-z].
  *  
- *  Ensuing limitation: works only for languages where [a-z] is
- *  sufficient.
+ *  Limitation: works only for languages where [a-z] is sufficient.
  *
- *  Haskell interface implemented as a function with arguments for
- *  size in bytes of the output buffers,
- *  pointers to the input string, and two output arrays, one for 
- *  the words and one for the counts.
- *  Return the length of the output arrays.
- *
- *  Rethinking the Haskell interface:
- *  
- *  will use Foreign.Marshal.Array, and
- *  do 3 mallocArray calls: 
- *      1. for the array of counts
- *      2. for the array of words (pointers to strings)
- *      3. for the strings themselves
- *  The resulting pointers will be passed to the C code, so that
- *  the words[0] = &strings.
- *  Then on return, use peekArray to words to convert to a list of
- *  pointers to strings; then use peekArray0 to convert the arrays pointed at by 
- *  the elements of words into lists of chars (=Haskell strings).
- *
- *  NEED TO REFACTOR CODE AGAIN TO GET THIS DONE.
- *
- *  */
-
-/* Implementation of the counter function */
+ *  Plan to access functionality also from Haskell. 
+ *  For that, will move actual counting functionality to separate library file. */
 
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <unistd.h>    // For using stat
 #include <sys/stat.h>  // For using stat
 #include <sys/types.h> // For using stat
-#include "counter.h"
+#include "counter.h"   // Separate header file to allow for eventual Haskell integration
 
-
-#define MAXTRIESIZE 100000 
-#define MAXUNIQUEWORDS 50000
-#define A 141 
-#define DELIM ",.-;:!?"
+#define MAXTRIESIZE 100000    // Max number of nodes; 100 000 should suffice 
+#define MAXUNIQUEWORDS 50000  // Max number of unique words to list; 50 000 should suffice
 
 /* Declaration of the node struct for the trie */
 struct Node
@@ -55,30 +30,22 @@ struct Node
 };
 typedef struct Node Node;
 
-
-
-/* Global variables and constants  */
-Node *nodeheap;  // Start of calloc block
+/* Global variables and constants - see if can make these into static instead */
 Node *nextnode;  // Next free node address
 Node *maxnode;   // Last possible node address
-Node *lexicon;   // Lexicon trie root node
-int ind = 0;     // Counter for building the output arrays in function "dump"
-
 
 /* Function prototypes */
-Node* newnode();
-void fill(Node*,char*);
-int dump(Node*, Word**);
+Node* newnode();           // Initialise new trie node
+void fill(Node*,char*);    // Build trie from string
+int dump(Node*, Word**);   // Dumps trie to an array of Word structs
 
 /* Compare words based on counts - sort descending */
-// why cannot make inline???
-int compare(const void *first, const void *second)
+static inline int compare(const void *first, const void *second)
 {
-    return( ((Word*)second)->count - ((Word*)first)->count );
+    return( ((*(Word**)second)->count) - ((*(Word**)first)->count ));
 }
 
-/* Implementation */
-
+/* Main function handling UI */
 int main(int argc, char *argv[])
 {
     /* Read and process command line arguments */
@@ -93,24 +60,27 @@ int main(int argc, char *argv[])
         printf("Invalid number of lines to show.");
         return(-1);
     }
+    
     char *filePath = argv[2];
     
     /* Get file size */
     struct stat fileStat;
     if (stat(filePath, &fileStat) < 0)
     { 
-        printf("Some problem with the source file.");
+        printf("Problem with the source file.");
         return(-1);
     }
     size_t fileSize = fileStat.st_size; // Size in bytes
     
-    /* Allocate memory and read in the file */    
+    /* Allocate memory for source data string */    
     char *text = calloc(fileSize + 1, sizeof(char));
     if (text == NULL)
     {
         printf("Memory allocation issue. Exiting.");
         return(-1);
     }
+    
+    /* Read source data string into memory just allocated */
     FILE *file = fopen(filePath,"r");
     if (fread(text, sizeof(char), fileSize, file) != fileSize)
     {
@@ -118,42 +88,43 @@ int main(int argc, char *argv[])
         return(-1);
     }
     fclose(file);
-    text[fileSize] = '\0'; // Ensure null-termination
+    text[fileSize] = '\0'; // Ensure null-termination   
 
-    /* Allocate space for words and set array of pointer to the words */
+    /* Allocate space for words and set array of pointers to the words */
     Word *wordHeap = calloc(MAXUNIQUEWORDS, sizeof(Word));
     Word *words[MAXUNIQUEWORDS];
-    words[0] = wordHeap;
-    
-    /* Get counts of all words in the text; wc = number of different words */
-    int wc = counts(text,words);
+   
+    /* Get counts of all words in the text; wc = number of unique words */
+    int wc = counts(text, words, wordHeap);
     
     /* Sort the words by frequency */
     qsort(words, wc, sizeof(Word*), compare);
     
     /* Print the results */
+    if (wc<lines) lines = wc; // Ensure that print only existing lines    
     for (int i = 0; i < lines; i++)
         printf("%s : %i \n", words[i]->word, words[i]->count);    
         
     free(text);
     free(wordHeap);    
-
     return 0;
 }
 
-
-/* The exported counting function.
- * returns the number of unique words. Parameters are
- * text: input string; words: string array for unique words;  
- * wordcounts: int array for number of occurences; and
- * stringHeap: pointer to memory block for storing the word strings
- * Caller is responsible for allocating memory for the output arrays. */
-int counts(char *text, Word *words[])
+/* The counting function to be also exported to Haskell.
+ * Returns the number of unique words. 
+ * Parameters are:
+ * text:     input string; 
+ * words:    array of pointers to Word structures holding the unique words and their counts;
+ * wordheap: memory allocated for the Word sructures
+ * Caller is responsible for allocating memory for words and wordheap */
+int counts(char *text, Word *words[], Word *wordheap)
 {
-    nodeheap = calloc(MAXTRIESIZE, sizeof(Node));    // calloc inits w/0
+    words[0] = wordheap; // Synchronise the array and the Word heap
+    
+    Node *nodeheap = calloc(MAXTRIESIZE, sizeof(Node));   
     maxnode = nodeheap + MAXTRIESIZE * sizeof(Node); 
     nextnode = nodeheap;                             
-    lexicon  = newnode();                            
+    Node *lexicon  = newnode();                            
     
     fill(lexicon, text);
 
@@ -169,76 +140,87 @@ Node* newnode()
 {
     if (nextnode > maxnode) abort();
     Node *node = nextnode;
-    nextnode = nextnode + sizeof(Node);
+    nextnode++;
     return node;
+}
+
+/*  Test if char belongs to [a-zA-z] */
+static inline bool letter(char c)
+{
+    if ((c>64 && c<91) || (c>96 && c <123)) return(true); 
+    else return(false);
+} 
+
+/*  Make letters into index 0..25. 
+*   ONLY WORKS FOR [a-zA-Z]         */
+static inline char toInd(char c)
+{
+    if (c<91) return(c-65);
+    else return(c-97);
 }
 
 /* Build the trie by adding words from the string. 
    The actual count comes at the last letter.*/
 void fill(Node *trie, char *string)
 {
-    for (char *word = strtok(string, DELIM); word != NULL; word = strtok(NULL, DELIM)) // REDO with custom code
+    int i = 0;          // index into the string
+    Node *node = trie;  // initialise at root node
+    
+    while (true) 
     {
-        Node *node = trie;
-        int i = 0;
-        while (word[i] != '\0')
+        while (! letter(string[i])) 
         {
-            int j = word[i] - A; // turn letter into index with a=0, z=25
-            if (node->child[j] == NULL)
-                node->child[j] = newnode();
-            node = node->child[j];
-            i++;
+            if (string[i] == 0) return;  // Exit function on terminal null character
+            i++;                         // Skip other non-letters
         }
-        node->value = (node->value) + 1;
+        
+        while (letter(string[i]))        // then process while have letters
+        {
+            char c = toInd(string[i]);   // upper and lower case to index where A=a=0, Z=z=25
+            if (node -> child[c] == NULL) 
+                node -> child[c] = newnode();
+            node = node -> child[c];
+            i++;    
+        }
+        (node -> value)++; 
+        node = trie;
     }
 }
 
-// REFACTOR DUMP TO WORK WITH NEW EXPORTED SIGNATURE
-/* Dump the trie (pointer to root) to two arrays:
- * first of the words (strings) stored in the trie,
- * second of the corresponding word counts.
- *
- * NOTE: building the words backwards!
- *
- * TO DO: make words, counts into global vars.
- * !!! NEED newWord() !!!
- */
+/* Dump the trie to a list of Word structures with counts. */
 int dump(Node *trie, Word *words[])
 {
-    static int ind = 0;            // 
+    static int ind = 0;             
 
     int val = trie -> value;
-    if (val)                       // If we are at word end...
+    if (val)                         // If we are at word end...
     {
-        words[ind] -> count = val; // ...save the value to counts...
-        ind++;                     // ...and increase the index to counts  
+        words[ind] = words[0] + ind; // Reserve new Word; to check that not ind*sizeof(Word)
+        words[ind] -> count = val;   // ...save the value to counts...
+        ind++;                       // ...and increase the index to counts  
     }
 
-    int appendfrom = 0;            // using "windows" for appending the first letter
-    for (int i = 0; i < 26; i++)   // "for each letter a-z"
+    int appendfrom = ind;            // using "windows" for appending the first letter
+    for (int i = 0; i < 26; i++)     // "for each letter a-z"
     {
         Node *n = trie->child[i];
         if (n != NULL) 
         {
-            dump(n,words);         // add tails after node n to wordlist
+            dump(n,words);           // add tails after node n to wordlist
             
-            char c = A+i;          // The letter corresponding to child node n
+            char c = 97+i;           // The letter corresponding to child node n
 
             for (int j = appendfrom; j < ind; j++)
             {
                 // append c to words[j] ==> CHECK POINTERS
-                char buffer[20];    
+                char buffer[20] = "";    
                 strcpy(buffer, words[j] -> word);
                 words[j] -> word[0] = c; 
                 words[j] -> word[1] = 0;
                 strcat(words[j] -> word, buffer);
             }
-
-            appendfrom = ind; // or ind +1?
+            appendfrom = ind; 
         }
     }
-    appendfrom = 0;
-    
-    return(ind + 1);               // Number of unique words
+    return(ind);               // Number of unique words
 }
-

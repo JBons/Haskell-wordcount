@@ -11,7 +11,7 @@ struct Word
 typedef struct Word Word;
 
 /* The main counting function, the only one exported */
-int counts(char*, Word**); 
+int counts(char*, Word**, Word*); 
 
 
 /* Need to check compilation / linking options:
