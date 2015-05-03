@@ -4,21 +4,17 @@
 
 module Trie where
 
-import Prelude hiding (lookup)
+import Prelude hiding (lookup, sequence)
 import qualified Data.Map as M
 import Data.Word
-import qualified Data.ByteString.Char8 as B
-import Control.Monad
+import Control.Monad hiding (sequence)
+import Control.Applicative ((<$>), (<*>), pure, Applicative) 
+import qualified Data.Foldable as F
+import Data.Traversable
 import Text.Printf
 
 -- Will use existence of value to mark end of word
 data Trie c v = Trie { value :: Maybe v, tails :: M.Map c (Trie c v) }
-
--- Tries should be:
---  * Foldable
---  * Traversables
--- Monad not clear? Meaning?
--- To handle String tries and ByteString tries
 
 class Ord c => Mapping m c v where 
     empty  :: m c v
@@ -45,11 +41,14 @@ instance Ord c => Mapping Trie c v where
              
     delete = update (\_ -> Nothing) 
 
-    toList trie = concat $ fmap builder $ M.toList $ tails trie where     
+    toList trie = rv ++ (concat $ fmap builder $ M.toList $ tails trie) where     
+        rv = case value trie of 
+            Nothing -> []
+            Just v  -> [([],v)]
         builder :: Ord c => (c, Trie c v) -> [([c],v)]
         builder (c,t) = case value t of
                            Nothing -> prefix c $ toList t 
-                           Just v  -> ([c], v) : (prefix c $ toList t) 
+                           Just v  -> (prefix c $ toList t) 
                        where prefix c ll = fmap (\(s,v) -> (c:s,v)) ll   
 
 add :: Ord c => v -> Trie c v -> [c] -> Trie c v
@@ -59,9 +58,31 @@ add value = update (\_ -> Just(value))
 fromList :: Ord c => [([c],v)] -> Trie c v
 fromList = foldl (\ t (k,v) -> add v t k ) empty 
 
--- Makes Trie into functor (on the value type)
-map :: Ord c => (v -> u) -> Trie c v -> Trie c u
-map f t = Trie { value = liftM f $ value t, tails = M.map (Trie.map f) (tails t) }
+instance (Ord c, Eq c, Eq v) => Eq (Trie c v) where
+    t1 == t2 = toList t1 == toList t2
+
+instance Ord c => Traversable (Trie c) where
+   traverse f t = Trie <$> root <*> children  where
+       root     = sequenceA( fmap f (value t) )
+       children = sequenceA $ M.map (traverse f) (tails t)
+
+instance Ord c => F.Foldable (Trie c) where
+    foldMap = foldMapDefault
+
+instance Ord c => Functor (Trie c) where
+    fmap = fmapDefault 
+--
+-- Notice that (like with Data.Map et al.) Foldable.toList makes list of only values and unlike
+-- Trie.toList does NOT produce an association list (from which the trie can be reconstructed).
+
+instance Ord c => Monad (Trie c) where
+    (>>=) t f = let tl = toList t in (fromList.concat) (map g tl) where
+       g (k,v) = map (\(a,b) -> (k++a, b)) (toList (f v))
+    return v = add v empty []    
+
+instance Ord c=> Applicative (Trie c) where
+    (<*>) = ap
+    pure  = return
 
 instance (Show v, Show [c], Ord c) => Show (Trie c v) where
     show t = summary ++ (display $ take 15 graph) where   
@@ -70,5 +91,8 @@ instance (Show v, Show [c], Ord c) => Show (Trie c v) where
                  display = concat  . fmap ( \(k,v) ->  printf "%15s :   %4v \n" (show k) (show v) )
 
 
-
-
+{- Made T=(Trie c) into a monad with t >>= f defined as follows:
+-  
+- for each key k in t with corresponding value v, take the keys ks of f v. Form new keys k's = (k ++ ks) 
+- by concatenating. Replace the key k in t with the keys k's and give them values from (f v).
+-}
