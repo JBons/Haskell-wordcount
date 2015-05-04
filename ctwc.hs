@@ -32,8 +32,8 @@ data Word = Word { count :: Int
 
 instance Storable Word where
     peek ptr = do
-        let intP = (castPtr ptr)   :: Ptr CInt
-        let chrP = (plusPtr ptr 4) :: CString
+        let chrP = (castPtr ptr) :: CString
+        let intP = (plusPtr ptr 20)   :: Ptr CInt
         cc   <- peek intP
         let count = fromIntegral cc
         word <- peekCString chrP
@@ -56,8 +56,8 @@ wordFreqs s = do
     plist <- peekArray size wpa
     wordlist <- mapM peek plist
     let raw = map (\w -> (word w, count w)) wordlist
-    --let result = reverse $ sortWith snd raw
-    return raw --fix back after debugging
+    let result = reverse $ sortWith snd raw
+    return result
 
 
 main = timeIt proc --get running time
