@@ -25,24 +25,22 @@ import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 
-data Word = Word { count :: Int
-                 , word  :: String }
+data Word = Word { word  :: String,  
+                   count :: Int    }
 
 instance Storable Word where
     peek ptr = do
-        let chrP = (castPtr ptr) :: CString
-        let intP = (plusPtr ptr 20)   :: Ptr CInt
-        cc   <- peek intP
-        let count = fromIntegral cc
-        word <- peekCString chrP
-        return $ Word {count = count, word = word}
-    poke ptr w = do return () -- do nothing
+        let chrP = (castPtr ptr)    :: CString
+        let intP = (plusPtr ptr 20) :: Ptr CInt
+        word  <- peekCString chrP
+        count <- peek intP
+        return $ Word {word = word, count = fromIntegral count}
+    poke ptr w = do return () -- do nothing as not needed
     sizeOf _ = 24
     alignment _ = 4
 
 foreign import ccall "counterlib.h counts" c_counts :: CString -> Ptr(Ptr Word) -> Ptr () -> IO CInt
 
--- COMPILES BUT MISREADS THE DATA
 -- Words of a text together with their frequencies, sorted highest->lowest
 wordFreqs :: String ->  IO [(String,Int)]  
 wordFreqs s = do
@@ -57,7 +55,6 @@ wordFreqs s = do
     let result = reverse $ sortWith snd raw
     return result
 
-
 main = timeIt proc --get running time
 
 --Actual main UI task
@@ -71,4 +68,3 @@ proc = do args <- getArgs
 --Pretty-print the results
 display xs = mapM putStrLn $ fmap disp xs where
     disp (x,y) = printf "%15s :   %4d" x y 
-
