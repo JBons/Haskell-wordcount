@@ -90,6 +90,8 @@ instance (Show v, Show [c], Ord c) => Show (Trie c v) where
                  summary = printf "Trie with %v key-value pairs, starting with:\n" (length graph)
                  display = concat  . fmap ( \(k,v) ->  printf "%15s :   %4v \n" (show k) (show v) )
 
+size :: Ord c => Trie c v -> Int
+size t = 1 + sum (fmap (size.snd) $ M.toList $ tails t)
 
 {- Made T=(Trie c) into a monad with t >>= f defined as follows:
 -  

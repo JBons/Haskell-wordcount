@@ -58,8 +58,13 @@ proc = do args <- getArgs
           let wcount = length $ words text
           let uwords = length result
           putStrLn $ "Total words: " ++ (show wcount)
-          putStrLn $ "Different words: " ++ (show uwords) 
+          putStrLn $ "Different words: " ++ (show uwords)
+          putStrLn $ "Size of trie: " ++ (show $ trieSize text)
 
 --Pretty-print the results
 display xs = mapM putStrLn $ map disp xs where
     disp (x,y) = printf "%15s :   %4d" x y 
+
+trieSize = size . (foldl (update counting) (Trie.empty :: Trie Char Int)) . words . (fmap toLower) where
+    counting Nothing = Just 1
+    counting (Just n)  = Just (n+1)    

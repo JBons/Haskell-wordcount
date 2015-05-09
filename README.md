@@ -7,6 +7,9 @@ Testing with the full text of Tolstoy's War and Peace on late 2014 Macbook Pro 1
 * A simple shell script chaining UNIX utilities (tr, sort, uniq, sed): 0.7 sec
 * Haskell using immutable trie to count word occurences (wc.hs in the main folder): 3.4 sec
 * Haskell using (mutable) hash table to count words: 1.9 sec
-* Haskell using a mutable version of trie:
-* C programme implementing a light-weight trie to count words:
-* Haskell programme calling the trie algorithm written in C:
+* Haskell using a mutable version of trie: *TBD*
+* C programme implementing a light-weight trie to count words: 0.04 sec
+* Haskell programme calling the trie algorithm written in C: 0.28 sec
+
+The 85-fold difference speed difference between the trie algorithm in C and Haskell is unexpectedly big. 
+
