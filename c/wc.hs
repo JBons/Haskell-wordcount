@@ -1,10 +1,8 @@
-{- Compilation: gcc -dynamiclib -fPIC -o lib.so counterlib.o
+{- Build: 
+ - gcc -dynamiclib -fPIC -O3 -o lib.so counterlib.c
  - ghci lib.so
- - ghc ctwc.hs lib.so
+ - ghc -O2 wc.hs lib.so
  -} 
-
-
-
 
 {-# LANGUAGE ForeignFunctionInterface #-}
 

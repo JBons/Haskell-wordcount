@@ -9,15 +9,8 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdbool.h>
-#include <unistd.h>    // For using stat
-#include <sys/stat.h>  // For using stat
-#include <sys/types.h> // For using stat
 #include "counterlib.h"   // Separate header file to allow for eventual Haskell integration
-
-#define MAXTRIESIZE 100000    // Max number of nodes; 100 000 should suffice 
-#define MAXUNIQUEWORDS 50000  // Max number of unique words to list; 50 000 should suffice
 
 /* Declaration of the node struct for the trie */
 struct Node
