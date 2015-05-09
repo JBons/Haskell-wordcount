@@ -5,9 +5,7 @@ import Data.Char hiding (isSpace)
 import Data.List (reverse)
 import GHC.Exts (sortWith)
 import Control.Monad (forM, liftM)
-import Control.Monad.ST
-import qualified Data.HashTable.ST.Linear as HL
-import qualified Data.HashTable.Class as H
+import Trie
 import System.Environment
 import System.TimeIt
 import Text.Printf
@@ -24,27 +22,15 @@ words s = let clean = dropWhile isSpace s in
         str -> first : (words rest)
             where (first, rest) = span isLetter str 
 
--- Alias for the Linear-type hash table
-type HashTable s k v = HL.HashTable s k v
-
---Counts frequencies of strings in a list using the ST monad
+-- Implements lexicon as Trie to count occurences of the words in a list
 counts :: [String] -> [(String, Int)] 
-counts words = let size = length words in
-               runST $ do 
-                       lexicon <- H.newSized size ::  ST s (HashTable s String Int)
-                       forM words (increment lexicon) 
-                       H.toList lexicon
-
---Increment hashtable value for a key or create value 1 for new key
-increment :: HashTable s String Int -> String -> ST s () 
-increment ht key = do cur <- H.lookup ht key
-                      case cur of
-                           Nothing -> H.insert ht key 1
-                           Just n  -> H.insert ht key (n+1)
+counts = toList . foldl (update counting) (Trie.empty :: Trie Char Int) where
+    counting Nothing = Just 1
+    counting (Just n)  = Just (n+1)
 
 --Words of a text together with their frequencies, sorted highest->lowest
 wordFreqs :: String ->  [(String,Int)]  
-wordFreqs = reverse . sortWith snd . counts . words . (map toLower)
+wordFreqs = reverse . sortWith snd . counts . words . (fmap toLower)
 
 main = timeIt proc --get running time
 
@@ -61,5 +47,5 @@ proc = do args <- getArgs
           putStrLn $ "Different words: " ++ (show uwords) 
 
 --Pretty-print the results
-display xs = mapM putStrLn $ map disp xs where
+display xs = mapM putStrLn $ fmap disp xs where
     disp (x,y) = printf "%15s :   %4d" x y 
