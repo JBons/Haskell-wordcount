@@ -27,7 +27,7 @@ words s = let clean = dropWhile isSpace s in
 counts :: [String] -> [(String, Int)] 
 counts words = let size = length words in
                runST $ do 
-                       lexicon <- empty ::  ST s (Trie s Char Int)
+                       lexicon <- empty ::  ST s (Trie s Int)
                        forM words (update byIncrements lexicon) 
                        toList lexicon
 

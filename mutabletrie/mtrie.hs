@@ -2,6 +2,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 
+-- New version of mutable trie where child nodes are maintained as a mutable list
+-- and not a hash table. Improves performance substantially.
+
 module MTrie where
 
 import Prelude hiding (lookup)
@@ -9,69 +12,64 @@ import qualified Data.Map as M
 import Data.Word
 import Control.Monad
 import Control.Monad.ST
-import qualified Data.HashTable.ST.Linear as HL
-import qualified Data.HashTable.Class as H
-import Data.Hashable(Hashable)
+import Data.Array.MArray
+import Data.Array.ST
 import Data.STRef
 import Text.Printf
 import Data.Foldable(foldlM)
 
---Alias for the Linear (ST) hash table
-type HTable s k v = HL.HashTable s k v
-
 -- Will use existence of value to mark end of word 
--- Node value is stored by STRef, child nodes in HTable
-data Trie s c v = Trie { value :: STRef s (Maybe v), tails :: HTable s c (Trie s c v) }
+-- Node value is stored by STRef, child nodes in STArray of Maybe Trie
+-- We specialise to c = Char, so type signatures change
+data Trie s v = Trie { value :: STRef s (Maybe v), 
+                         tails :: STArray s Char (Maybe (Trie s v)) }
+class SMapping m s v where 
+    empty  :: ST s (m s v)
+    lookup :: m s v -> String -> ST s (Maybe v)
+    update :: (Maybe v -> Maybe v) -> m s v -> String -> ST s () 
+    delete :: m s v -> String -> ST s ()
+    toList :: m s v -> ST s [ (String, v) ]
 
-class SMapping m s c v where 
-    empty  :: ST s (m s c v)
-    lookup :: m s c v -> [c] -> ST s (Maybe v)
-    update :: (Maybe v -> Maybe v) -> m s c v -> [c] -> ST s () 
-    delete :: m s c v -> [c] -> ST s ()
-    toList :: m s c v -> ST s [([c],v)]
-
-instance (Eq c, Hashable c) => SMapping Trie s c v where
+instance SMapping Trie s v where
 
     -- Implement empty
     empty = do newRef   <- newSTRef Nothing
-               newTails <- HL.newSized 50  
+               newTails <- newArray ('a','z') Nothing  
                return $ Trie { value = newRef, tails = newTails }
 
     -- Implement lookup
-    lookup trie []     = do
-        val <- readSTRef $ value trie
-        return val
+    lookup trie ""  = readSTRef $ value trie
 
     lookup trie (c:cs) = do
-        match <- H.lookup (tails trie) c
+        match <- readArray (tails trie) c
         case match of
             Just tail -> lookup tail cs    
             Nothing   -> return Nothing
     
     -- Implement update
-    update f trie [] = do
+    update f trie "" = do
         let vref = value trie
         val <- readSTRef vref
         modifySTRef' vref f
 
     update f trie (c:cs) = do
-        match <- H.lookup (tails trie) c
+        match <- readArray (tails trie) c
         case match of
             Just tail -> update f tail cs
             Nothing   -> do
                 newEmpty <- empty
-                H.insert (tails trie) c newEmpty
+                writeArray (tails trie) c (Just newEmpty)
                 update f newEmpty cs
 
     -- Implement delete
     delete = update (\_ -> Nothing) 
 
-    -- Implement toList 
+    -- Implement toList
     toList trie = do
-        childList <- H.toList $ tails trie
+        childList <- toAssocList $ tails trie
         liftM concat $ mapM builder childList where
         
-            builder :: (Eq c, Hashable c) => (c, Trie s c v) -> ST s [([c],v)]
+            builder :: (Char, Trie s v) -> ST s [ (String, v) ]
             builder (c,t) = do
                 val  <- readSTRef $ value t
                 ends <- toList t
@@ -79,31 +77,23 @@ instance (Eq c, Hashable c) => SMapping Trie s c v where
                 case val of
                     Nothing -> return upd
                     Just v  -> return $ ([c],v) : upd
-    
+
+-- Turn array of (Maybe a) values to list of (ind, a) tuples
+toAssocList :: Ix i => STArray s i (Maybe v) -> ST s [ (i,v) ]
+toAssocList a = do
+    pairs <- getAssocs a 
+    return [ (ind, v) | (ind, Just v) <- pairs]
+
 -- Helper for toList: prefixes an element to the first pos in list of tuples
 prefix c ll = fmap (\(s,v) -> (c:s,v)) ll   
 
-add :: (Eq c, Hashable c) => v -> Trie s c v -> [c] -> ST s ()
+add :: v -> Trie s v -> String -> ST s ()
 add value = update (\_ -> Just(value)) 
 
 -- If key is repeated, then later value overrides earlier value
-fromList :: (Eq c, Hashable c) => [([c],v)] -> ST s (Trie s c v)
+fromList :: [ (String, v) ] -> ST s (Trie s v)
 fromList pairs = do
     t <- empty
     forM pairs (\ (k,v) -> add v t k ) 
     return t
 
--- Makes Trie into functor (on the value type) =====TO DO / THINK WHAT IS CORRECT APPROACH
---map :: (Eq c, Hashable c) => (v -> u) -> Trie s c v -> Trie c u
---map f t = Trie { value = liftM f $ value t, tails = M.map (Trie.map f) (tails t) }
-
-{-
-
-instance (Show v, Show [c], Eq c, Hashable c) => Show (Trie s c v) where
-    show t = let aux = do graph <- toList t
-                          putStr $ (summary graph) ++ (display $ take 15 graph)    
-                          return t where
-                               summary graph = printf "Trie with %v key-value pairs, starting with:\n" (length graph)
-                               display = concat  . fmap ( \(k,v) ->  printf "%15s :   %4v \n" (show k) (show v) )
-             in (\_ -> "Printed") aux
--}
