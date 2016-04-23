@@ -4,7 +4,7 @@ import           Prelude                  hiding (words)
 
 import           Control.Monad            (forM_)
 import           Control.Monad.ST         (ST, runST)
-import           Data.Char                (isLetter, toLower)
+import           Data.Char                (isLetter, toLower,ord)
 import           Data.List                (group, sort)
 
 import qualified CCounterLib              as CT
@@ -39,7 +39,7 @@ mTrieCounts string = let size = length words in
                        forM_ words (MT.update byIncrements lexicon)
                        MT.toList lexicon
     where
-        words =prepare string
+        words = map (\w -> map ord w) (prepare string)
         byIncrements Nothing   = Just 1
         byIncrements (Just n)  = Just (n+1)
 

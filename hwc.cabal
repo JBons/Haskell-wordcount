@@ -22,6 +22,7 @@ library
                      , containers
                      , array
                      , hashtables
+                     , vector
   default-language:    Haskell2010
   C-sources:           cbits/libCounterlib.c
   Include-dirs:        include
