@@ -1,17 +1,18 @@
 module WordCounters where
 
-import           Prelude                  hiding (words)
+import           Prelude                          hiding (words)
 
-import           Control.Monad            (forM_)
-import           Control.Monad.ST         (ST, runST)
-import           Data.Char                (isLetter, toLower)
-import           Data.List                (group, sort)
+import           Control.Monad                    (forM_)
+import           Control.Monad.ST                 (ST, runST)
+import           Data.Char                        (isLetter, toLower)
+import           Data.List                        (group, sort)
 
-import qualified CCounterLib              as CT
-import qualified Data.HashTable.Class     as H
-import qualified Data.HashTable.ST.Linear as HL
-import qualified MTrie                    as MT
-import qualified Trie                     as T
+import qualified CCounterLib                      as CT
+import qualified Data.Edison.Assoc.TernaryTrie    as E
+import qualified Data.HashTable.Class             as H
+import qualified Data.HashTable.ST.Linear         as HL
+import qualified MTrie                            as MT
+import qualified Trie                             as T
 
 -- String to lower-case words
 prepare = words . map toLower
@@ -66,6 +67,13 @@ htCounts string = let size = length words in
 
 cTrieCounts :: String -> [(String, Int)]
 cTrieCounts = CT.counts
+
+
+-- 6. Data.Edison.Assoc.TernaryTrie
+
+eCounts :: String ->  [(String, Int)]
+eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
+    input =zip (prepare str) (repeat 1) 
 
 
 -- Replacement for Prelude words function
