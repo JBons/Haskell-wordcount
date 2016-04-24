@@ -7,19 +7,20 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+-- {-# LANGUAGE Strict #-} : Try as soon as GHC 8 is out!
 
 module Trie where
 
 import           Control.Applicative (Applicative, pure, (<$>), (<*>))
 import           Control.Monad       hiding (sequence)
 import qualified Data.Foldable       as F
-import qualified Data.Map            as M
+import qualified Data.Map.Strict     as M
 import           Data.Traversable
 import           Prelude             hiding (lookup, sequence)
 import           Text.Printf
 
 -- Will use existence of value to mark end of word
-data Trie c v = Trie { value :: Maybe v, tails :: M.Map c (Trie c v) }
+data Trie c v = Trie { value :: !(Maybe v), tails :: !(M.Map c (Trie c v)) }
 
 class Ord c => Mapping m c v where
     empty  :: m c v
@@ -36,6 +37,7 @@ instance Ord c => Mapping Trie c v where
     lookup trie (c:cs) = do
         tail <- M.lookup c (tails trie)
         lookup tail cs
+    {-# Specialise lookup :: Trie Char Int -> [Char] -> Maybe Int #-}
 
     update f trie []     = trie { value = f  $ value trie }
     update f trie (c:cs) = trie { tails = updated } where
@@ -43,6 +45,7 @@ instance Ord c => Mapping Trie c v where
             Just sub -> M.update (\_ -> Just $ update f sub cs) c (tails trie)
             Nothing  -> M.insert c newbranch (tails trie) where
                 newbranch = update f empty cs
+    {-# Specialise update :: (Maybe Int -> Maybe Int)-> Trie Char Int -> [Char] -> Trie Char Int #-}
 
     delete = update (const Nothing)
 

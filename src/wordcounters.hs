@@ -73,7 +73,7 @@ cTrieCounts = CT.counts
 
 eCounts :: String ->  [(String, Int)]
 eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
-    input =zip (prepare str) (repeat 1) 
+    input =zip (prepare str) (repeat 1)
 
 
 -- Replacement for Prelude words function
