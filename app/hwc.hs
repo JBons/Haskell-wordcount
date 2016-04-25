@@ -14,7 +14,6 @@ import           System.TimeIt      (timeIt)
 import           Text.Printf        (printf)
 import           WordCounters
 
-
 -- User interface and main IO action
 -- Command line arguments: #top words to show, methods to test, filename
 main = do args <- getArgs
@@ -32,12 +31,13 @@ main = do args <- getArgs
 decode :: [Char] -> [(String -> [(String, Int)], String)]
 decode = mapMaybe (flip lookup methods) where
     methods = fromList
-        [ ('s', (simpleCounts, "Using a simple combination of list methods"))
+        [ ('l', (simpleCounts, "Using a simple combination of list methods"))
         , ('t', (trieCounts,   "Counting with non-mutable trie"))
         , ('m', (mTrieCounts,  "Counting with mutable trie"))
         , ('h', (htCounts,     "Counting with hash table"))
         , ('c', (cTrieCounts,  "Counting with fast c-code trie"))
-        , ('e', (eCounts,      "Using Data.Edison.Assoc.TernaryTrie")) ]
+        , ('e', (eCounts,      "Using Data.Edison.Assoc.TernaryTrie"))
+        , ('s', (sCounts,      "Counting with Data.Map.Strict")) ]
 
 
 -- Runs word counting on text using the selected method, printing
@@ -64,4 +64,4 @@ display = mapM (putStrLn . disp) where
 
 -- Argument errors
 invalid args = length args < 3 || not (all isDigit (head args))
-errMsg = "Usage: hwc lines methods filename,\nwhere lines is the number most frequent words and their frequencies to show, methods is a sequence of letters naming the methods to test, and filename is the name of the file containing the text to analyse.\nAvailable methods are: \ns = simple,\nt = trie-based,\nm = mutable trie,\nh = hash table and\nc = trie written in C,\ne = Data.Edison.Assoc.TernaryTrie"
+errMsg = "Usage: hwc lines methods filename,\nwhere lines is the number most frequent words and their frequencies to show, methods is a sequence of letters naming the methods to test, and filename is the name of the file containing the text to analyse.\nAvailable methods are: \nl = simple list methods,\nt = trie-based,\nm = mutable trie,\nh = hash table and\nc = trie written in C,\ne = Data.Edison.Assoc.TernaryTrie,\ns = using Data.Map.Strict"

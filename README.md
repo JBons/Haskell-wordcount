@@ -8,15 +8,18 @@ Testing with the full text of Tolstoy's War and Peace on late 2014 Macbook Pro 1
 * Haskell using immutable trie to count words : 1.6 sec (with strictness annotations and specialisation pragmas on two key functions; 2.7 sec without these optimisations.)
 * Haskell using mutable version of trie: 2.3 sec
 * Haskell using Data.Edison.Assoc.TernaryTrie: 2.3 sec
-* Haskell using (mutable) hash table to count words: 1.6 sec
+* Haskell using Data.Map.Strict to implement a bag data structure: 1.6 sec
+* Haskell using (mutable) hash table to implement a bag: 1.6 sec
 * C programme implementing a light-weight trie to count words: 0.04 sec (!!)
   * The C code implements essentially the same trie as the mutable trie Haskell code
 * Haskell programme calling the trie algorithm written in C: 0.5 sec
 
 The 40-fold difference speed difference between the trie algorithm in C and Haskell is unexpectedly big. Need to investigate ways to get order-of-magnitude improvement to the Haskell code (if possible).
 
+Three Haskell programmes tie at 1.6 sec: very simple application of Data.Map.Strict (pure); same logic with hash table (mutable) and a multiway trie (pure).
+
 Interesting changes in performance relative to GHC 7.8.4 (however possibly partly due to some minor changes in set-up):
 * Simple algorithm almost 10% faster
 * Immutable trie implementation about 20% faster
 * Hash-table implementation about 15% faster
-* The C library 0.2 sec slower (0.48 vs 0.28). Is there something slowing down  FFI? Absolute difference is not big, but relative is.
+* The C library via Haskell FFI 0.2 sec slower (0.48 vs 0.28). Is there something slowing down  FFI? Absolute difference is not big, but relative is.
