@@ -13,8 +13,9 @@ import qualified Data.HashTable.Class             as H
 import qualified Data.HashTable.ST.Linear         as HL
 import qualified MTrie                            as MT
 import qualified Trie                             as T
+import qualified Data.Map.Strict                  as M
 
--- String to lower-case words
+-- Common helper: string to lower-case words
 prepare = words . map toLower
 
 
@@ -45,7 +46,12 @@ mTrieCounts string = let size = length words in
         byIncrements (Just n)  = Just (n+1)
 
 
---4. Counts frequencies of strings in a list using hash tables in the ST monad
+-- 4. Using Data.Map.Strict to count the words
+sCounts :: String -> [(String, Int)]
+sCounts str = f (prepare str) where
+    f l = M.toAscList (M.fromListWith (+) (zip l (repeat 1)))
+
+--5. ST monad HashTable in place of Map to count the words
 type HashTable s k v = HL.HashTable s k v
 
 htCounts :: String -> [(String, Int)]
@@ -63,17 +69,16 @@ htCounts string = let size = length words in
                                   Nothing -> H.insert ht key 1
                                   Just n  -> H.insert ht key (n+1)
 
--- 5. Using fast C library through FFI
+-- 6. Data.Edison.Assoc.TernaryTrie
+eCounts :: String ->  [(String, Int)]
+eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
+    input =zip (prepare str) (repeat 1)
+
+-- 7. Using fast C library through FFI
 
 cTrieCounts :: String -> [(String, Int)]
 cTrieCounts = CT.counts
 
-
--- 6. Data.Edison.Assoc.TernaryTrie
-
-eCounts :: String ->  [(String, Int)]
-eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
-    input =zip (prepare str) (repeat 1)
 
 
 -- Replacement for Prelude words function
@@ -88,5 +93,5 @@ words :: String -> [String]
 words s = let clean = dropWhile isSpace s in
     case clean of
         ""  -> []
-        str -> first : (words rest)
+        str -> first : words rest
             where (first, rest) = span isLetter str
