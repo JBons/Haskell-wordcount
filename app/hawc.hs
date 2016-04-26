@@ -38,7 +38,8 @@ decode = mapMaybe (flip lookup methods) where
         , ('h', (htCounts,     "Counting with hash table"))
         , ('c', (cTrieCounts,  "Counting with fast c-code trie"))
         , ('e', (eCounts,      "Using Data.Edison.Assoc.TernaryTrie"))
-        , ('s', (sCounts,      "Counting with Data.Map.Strict")) ]
+        , ('s', (sCounts,      "Counting with Data.Map.Strict"))
+        , ('b', (bCounts,      "Using MBags hash-map bag")) ]
 
 
 -- Runs word counting on text using the selected method, printing
@@ -63,4 +64,4 @@ display = mapM (putStrLn . disp) where
 
 -- Argument errors
 invalid args = length args < 3 || not (all isDigit (head args))
-errMsg = "Usage: hawc lines methods filename,\nwhere lines is the number most frequent words and their frequencies to show, methods is a sequence of letters naming the methods to test, and filename is the name of the file containing the text to analyse.\nAvailable methods are: \nl = simple list methods,\nt = trie-based,\nm = mutable trie,\nh = hash table and\nc = trie written in C,\ne = Data.Edison.Assoc.TernaryTrie,\ns = using Data.Map.Strict"
+errMsg = "Usage: hawc lines methods filename,\nwhere lines is the number most frequent words and their frequencies to show, methods is a sequence of letters naming the methods to test, and filename is the name of the file containing the text to analyse.\nAvailable methods are: \nl = simple list methods,\nt = trie-based,\nm = mutable trie,\nh = hash table and\nc = trie written in C,\ne = Data.Edison.Assoc.TernaryTrie,\ns = using Data.Map.Strict\nb = hash-map based bag"

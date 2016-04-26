@@ -14,12 +14,16 @@ import qualified Data.Edison.Assoc.TernaryTrie as E
 import qualified Data.HashTable.Class          as H
 import qualified Data.HashTable.ST.Linear      as HL
 import qualified Data.Map.Strict               as M
+import qualified MBag                          as MB
 import qualified MTrie                         as MT
 import qualified Trie                          as T
 
 -- Common helper: string to lower-case words
-prepare :: C.ByteString -> [[Char]]
-prepare text  = map C.unpack (C.words  (B.map conv text)) where
+prepare :: C.ByteString -> [String]
+prepare = (map C.unpack) . prepare'
+
+prepare' :: C.ByteString -> [C.ByteString]
+prepare' = C.words . (B.map conv) where
     conv c
         | c > 96 && c < 123 = c
         | c > 64 && c < 91  = c + 32
@@ -76,12 +80,21 @@ htCounts string = let size = length words in
                                   Nothing -> H.insert ht key 1
                                   Just n  -> H.insert ht key (n+1)
 
--- 6. Data.Edison.Assoc.TernaryTrie
+-- 6. Testing StringBag
+
+bCounts :: C.ByteString -> [(String, Int)]
+bCounts string =
+    let pairs = runST $ do bag <- MB.empty 180000
+                           forM_ (prepare' string) (MB.add bag)
+                           MB.toList bag
+    in map (\(a,b) -> (C.unpack a, b)) pairs
+
+-- 7. Data.Edison.Assoc.TernaryTrie
 eCounts :: B.ByteString ->  [(String, Int)]
 eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
     input =zip (prepare str) (repeat 1)
 
--- 7. Using fast C library through FFI
+-- 8. Using fast C library through FFI
 
 cTrieCounts :: B.ByteString -> [(String, Int)]
 cTrieCounts = CT.counts . C.unpack

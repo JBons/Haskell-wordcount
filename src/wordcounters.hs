@@ -1,19 +1,19 @@
 module WordCounters where
 
-import           Prelude                          hiding (words)
+import           Prelude                       hiding (words)
 
-import           Control.Monad                    (forM_)
-import           Control.Monad.ST                 (ST, runST)
-import           Data.Char                        (isLetter, toLower)
-import           Data.List                        (group, sort)
+import           Control.Monad                 (forM_)
+import           Control.Monad.ST              (ST, runST)
+import           Data.Char                     (isLetter, toLower)
+import           Data.List                     (group, sort)
 
-import qualified CCounterLib                      as CT
-import qualified Data.Edison.Assoc.TernaryTrie    as E
-import qualified Data.HashTable.Class             as H
-import qualified Data.HashTable.ST.Linear         as HL
-import qualified MTrie                            as MT
-import qualified Trie                             as T
-import qualified Data.Map.Strict                  as M
+import qualified CCounterLib                   as CT
+import qualified Data.Edison.Assoc.TernaryTrie as E
+import qualified Data.HashTable.Class          as H
+import qualified Data.HashTable.ST.Linear      as HL
+import qualified Data.Map.Strict               as M
+import qualified MTrie                         as MT
+import qualified Trie                          as T
 
 -- Common helper: string to lower-case words
 prepare = words . map toLower

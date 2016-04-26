@@ -15,7 +15,7 @@ import qualified Data.Map         as M
 import           Data.STRef
 import           Prelude          hiding (lookup)
 
--- Will use existence of value to mark end of word
+-- Uses existence of value to mark end of word
 -- Node value is stored by STRef, child nodes in STArray of Maybe Trie
 -- We specialise to c = Char, so type signatures change
 data Trie s v = Trie { value   :: STRef s (Maybe v),
