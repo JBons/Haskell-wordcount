@@ -2,6 +2,7 @@ module MBag where
 
 import           Control.Monad.ST
 import           Data.Bits                   (shiftL)
+import qualified Data.ByteString             as C
 import           Data.Char                   (ord)
 import           Data.List                   (foldl')
 import qualified Data.Map.Strict             as M
@@ -11,20 +12,18 @@ import qualified Data.Vector.Mutable         as MV
 import qualified Data.Vector.Unboxed         as U
 import qualified Data.Vector.Unboxed.Mutable as MU
 
-
 data StringBag s = SB { counts   :: MU.MVector s Int
-                      , els      :: MV.MVector s String
-                      , collided :: STRef s (M.Map String Int)
+                      , els      :: MV.MVector s C.ByteString
+                      , collided :: STRef s (M.Map C.ByteString Int)
                       , tSize    :: Int }
 
---empty :: Int -> Int -> MBag s e
 empty :: Int -> ST s (StringBag s)
 empty n = do   c <- MU.new n
                e <- MV.new n
                m <- ST.newSTRef M.empty
                return SB {counts = c, els = e, collided = m, tSize = n}
 
-add :: StringBag s -> String -> ST s ()
+add :: StringBag s -> C.ByteString -> ST s ()
 add (SB cs es coll size) str =
     let i = (hash str) `mod` size in
     do c <- MU.read cs i
@@ -49,7 +48,7 @@ add (SB cs es coll size) str =
                                     ST.writeSTRef coll m''
                                     MU.write cs i (-1)
 
-toList :: StringBag s -> ST s [(String, Int)]
+toList :: StringBag s -> ST s [(C.ByteString, Int)]
 toList bag = do m <- ST.readSTRef (collided bag)
                 let cl = M.toList m
 
@@ -62,7 +61,7 @@ toList bag = do m <- ST.readSTRef (collided bag)
                 return (l ++ cl)
 
 -- djb2 string hash algorithm
-hash ::  String -> Int
-hash = foldl' iter 5381 where
+hash ::  C.ByteString -> Int
+hash = C.foldl' iter 5381 where
     iter hash chr = 33 * hash + ord chr
 {-# Inline hash #-}
