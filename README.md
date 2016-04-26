@@ -2,24 +2,24 @@
 
 This toy project tests a few alternative implementations of a programme that counts occurences of words in a text file. Various Haskell versions are tested against the classic simple UNIX shell script and a trie-based version written in C.
 
-Testing with the full text of Tolstoy's War and Peace on late 2014 Macbook Pro 15" gives the following results (updated for GHC 7.10.3 and packages in Stack lts-5.13):
-* A simple shell script chaining UNIX utilities (tr, sort, uniq, sed): 0.7 sec
-* Haskell implementing the same algorithm as the UNIX script: 3.4 sec
-* Haskell using immutable trie to count words : 1.6 sec (with strictness annotations and specialisation pragmas on two key functions; 2.7 sec without these optimisations.)
-* Haskell using mutable version of trie: 2.3 sec
-* Haskell using Data.Edison.Assoc.TernaryTrie: 2.3 sec
-* Haskell using Data.Map.Strict to implement a bag data structure: 1.6 sec
-* Haskell using (mutable) hash table to implement a bag: 1.6 sec
-* C programme implementing a light-weight trie to count words: 0.04 sec (!!)
-  * The C code implements essentially the same trie as the mutable trie Haskell code
-* Haskell programme calling the trie algorithm written in C: 0.5 sec
+Testing with the full text of Tolstoy's War and Peace on late 2014 Macbook Pro 15". The benchmark shell script (pipeline of tr, sort, uniq and sed) executes in 0.7 sec while a quick-and-dirty trie data structure coded in C completes in 0.04 sec.
 
-The 40-fold difference speed difference between the trie algorithm in C and Haskell is unexpectedly big. Need to investigate ways to get order-of-magnitude improvement to the Haskell code (if possible).
+The various tested Haskell approaches perform as follows (GHC 7.10.3 and Stack lts-5.13) - run hwc to test the various methods:
+* The same algorithm as the UNIX script using standard list functions: 3.4 sec
+* Ternary trie from Data.Edison.Assoc.TernaryTrie: 2.3 sec
+* Multiway trie in the Trie library in this project 1.6 sec
+    * Mutable version of trie in the MTrie library performs worse: 2.3 sec
+* Very simple bag data structure using Data.Map.Strict (balanced trees): 1.6 sec
+* Bag built using Data.Hashtable: 1.6 sec
+* Calling the C code from Haskell: 0.5 sec
 
-Three Haskell programmes tie at 1.6 sec: very simple application of Data.Map.Strict (pure); same logic with hash table (mutable) and a multiway trie (pure).
+All the results above spend a lot of time in pre-processing the input as (potentially) Unicode string. A fairer comparison to the specific benchmarks (both of which only deal with words in English alphabet a-zA-z) would be to use the input as 8-bit ASCII. This is done in the hawc executable, which reads and pre-processes input as Data.ByteString. The improvement in performance in substantial - now: 
+* Simple list-function algorithm: 2.5 sec
+* Edison ternary trie: 1.5 sec
+* Non-mutable trie: 0.6 sec
+* Mutable trie: 0.9 sec
+* Data.Map.Strict: 0.6 sec
+* Hashtable: 0.5 sec
+* Calling C-code: 0.3 sec
 
-Interesting changes in performance relative to GHC 7.8.4 (however possibly partly due to some minor changes in set-up):
-* Simple algorithm almost 10% faster
-* Immutable trie implementation about 20% faster
-* Hash-table implementation about 15% faster
-* The C library via Haskell FFI 0.2 sec slower (0.48 vs 0.28). Is there something slowing down  FFI? Absolute difference is not big, but relative is.
+Thus two purely functional algorithms (trie, balanced trees) and one mutable (hash tables) beat the chained shell commands.

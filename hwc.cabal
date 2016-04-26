@@ -1,5 +1,5 @@
 name:                hwc
-version:             0.3.3.0
+version:             0.3.4.0
 synopsis:            Testing different word counting algorithms in Haskell
 description:         Please see README.md
 homepage:            https://github.com/JBons/Haskell-wordcount#readme
@@ -17,7 +17,11 @@ Extra-source-files:  cbits, include
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Trie, MTrie, CCounterLib, WordCounters
+  exposed-modules:     Trie
+                     , MTrie
+                     , CCounterLib
+                     , WordCounters
+                     , WordCounters.ASCII
   ghc-options:         -O2 -rtsopts
   build-depends:       base >= 4.7 && < 5
                      , containers
@@ -25,6 +29,7 @@ library
                      , hashtables
                      , EdisonAPI
                      , EdisonCore
+                     , bytestring
   default-language:    Haskell2010
   C-sources:           cbits/libCounterlib.c
   Include-dirs:        include
@@ -37,10 +42,19 @@ executable hwc
   main-is:             hwc.hs
   ghc-options:         -O2 -rtsopts
   build-depends:       base
-                     , hwc
                      , containers
-                     , array
-                     , hashtables
+                     , hwc
+                     , timeit
+  default-language:    Haskell2010
+
+executable hawc
+  hs-source-dirs:      app
+  main-is:             hawc.hs
+  ghc-options:         -O2 -rtsopts
+  build-depends:       base
+                     , containers
+                     , bytestring
+                     , hwc
                      , timeit
   default-language:    Haskell2010
 
