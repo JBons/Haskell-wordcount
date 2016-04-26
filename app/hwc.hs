@@ -37,7 +37,8 @@ decode = mapMaybe (flip lookup methods) where
         , ('h', (htCounts,     "Counting with hash table"))
         , ('c', (cTrieCounts,  "Counting with fast c-code trie"))
         , ('e', (eCounts,      "Using Data.Edison.Assoc.TernaryTrie"))
-        , ('s', (sCounts,      "Counting with Data.Map.Strict")) ]
+        , ('s', (sCounts,      "Counting with Data.Map.Strict"))
+        , ('b', (bCounts,      "Counting with new hybrid bag")) ]
 
 
 -- Runs word counting on text using the selected method, printing

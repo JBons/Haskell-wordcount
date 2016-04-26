@@ -17,14 +17,15 @@ Extra-source-files:  cbits, include
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Trie, MTrie, CCounterLib, WordCounters
-  ghc-options:         -O2 -rtsopts
+  exposed-modules:     Trie, MTrie, CCounterLib, WordCounters, MBag
+  ghc-options:         -O2 -rtsopts -fllvm -pgmlo opt -pgmlc llc 
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , array
                      , hashtables
                      , EdisonAPI
                      , EdisonCore
+                     , vector
   default-language:    Haskell2010
   C-sources:           cbits/libCounterlib.c
   Include-dirs:        include
@@ -35,7 +36,7 @@ library
 executable hwc
   hs-source-dirs:      app
   main-is:             hwc.hs
-  ghc-options:         -O2 -rtsopts
+  ghc-options:         -O2 -rtsopts -fllvm -pgmlo opt -pgmlc llc
   build-depends:       base
                      , hwc
                      , containers

@@ -1,19 +1,20 @@
 module WordCounters where
 
-import           Prelude                          hiding (words)
+import           Prelude                       hiding (words)
 
-import           Control.Monad                    (forM_)
-import           Control.Monad.ST                 (ST, runST)
-import           Data.Char                        (isLetter, toLower)
-import           Data.List                        (group, sort)
+import           Control.Monad                 (forM_)
+import           Control.Monad.ST              (ST, runST)
+import           Data.Char                     (isLetter, toLower)
+import           Data.List                     (group, sort)
 
-import qualified CCounterLib                      as CT
-import qualified Data.Edison.Assoc.TernaryTrie    as E
-import qualified Data.HashTable.Class             as H
-import qualified Data.HashTable.ST.Linear         as HL
-import qualified MTrie                            as MT
-import qualified Trie                             as T
-import qualified Data.Map.Strict                  as M
+import qualified CCounterLib                   as CT
+import qualified Data.Edison.Assoc.TernaryTrie as E
+import qualified Data.HashTable.Class          as H
+import qualified Data.HashTable.ST.Linear      as HL
+import qualified Data.Map.Strict               as M
+import qualified MBag                          as MB
+import qualified MTrie                         as MT
+import qualified Trie                          as T
 
 -- Common helper: string to lower-case words
 prepare = words . map toLower
@@ -69,12 +70,20 @@ htCounts string = let size = length words in
                                   Nothing -> H.insert ht key 1
                                   Just n  -> H.insert ht key (n+1)
 
--- 6. Data.Edison.Assoc.TernaryTrie
+-- 6. Testing StringBag
+
+bCounts :: String -> [(String, Int)]
+bCounts string = runST $
+    do  bag <- MB.empty 500000
+        forM_ (prepare string) (MB.add bag)
+        MB.toList bag
+
+-- 7. Data.Edison.Assoc.TernaryTrie
 eCounts :: String ->  [(String, Int)]
 eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
     input =zip (prepare str) (repeat 1)
 
--- 7. Using fast C library through FFI
+-- 8. Using fast C library through FFI
 
 cTrieCounts :: String -> [(String, Int)]
 cTrieCounts = CT.counts
