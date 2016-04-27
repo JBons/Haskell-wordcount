@@ -97,4 +97,4 @@ eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
 -- 8. Using fast C library through FFI
 
 cTrieCounts :: B.ByteString -> [(String, Int)]
-cTrieCounts = CT.counts . C.unpack
+cTrieCounts = CT.counts 

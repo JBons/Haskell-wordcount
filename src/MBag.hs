@@ -3,6 +3,7 @@ module MBag where
 import           Control.Monad.ST
 import qualified Data.ByteString             as C
 import           Data.Char                   (ord)
+import           Data.Hashable               (hash)
 import qualified Data.Map.Strict             as M
 import           Data.STRef                  as ST
 import qualified Data.Vector                 as V
@@ -57,9 +58,3 @@ toList bag = do m <- ST.readSTRef (collided bag)
                 let ps = V.filter ((>0).snd) rps
                 let l = V.toList ps
                 return (l ++ cl)
-
--- djb2 string hash algorithm
-hash ::  C.ByteString -> Int
-hash str = C.foldl' iter 5381 str where
-    iter hash chr = 33 * hash + fromIntegral chr
-{-# Inline hash #-}

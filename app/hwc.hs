@@ -35,7 +35,6 @@ decode = mapMaybe (flip lookup methods) where
         , ('t', (trieCounts,   "Counting with non-mutable trie"))
         , ('m', (mTrieCounts,  "Counting with mutable trie"))
         , ('h', (htCounts,     "Counting with hash table"))
-        , ('c', (cTrieCounts,  "Counting with fast c-code trie"))
         , ('e', (eCounts,      "Using Data.Edison.Assoc.TernaryTrie"))
         , ('s', (sCounts,      "Counting with Data.Map.Strict")) ]
 
@@ -64,4 +63,4 @@ display = mapM (putStrLn . disp) where
 
 -- Argument errors
 invalid args = length args < 3 || not (all isDigit (head args))
-errMsg = "Usage: hwc lines methods filename,\nwhere lines is the number most frequent words and their frequencies to show, methods is a sequence of letters naming the methods to test, and filename is the name of the file containing the text to analyse.\nAvailable methods are: \nl = simple list methods,\nt = trie-based,\nm = mutable trie,\nh = hash table and\nc = trie written in C,\ne = Data.Edison.Assoc.TernaryTrie,\ns = using Data.Map.Strict"
+errMsg = "Usage: hwc lines methods filename,\nwhere lines is the number most frequent words and their frequencies to show, methods is a sequence of letters naming the methods to test, and filename is the name of the file containing the text to analyse.\nAvailable methods are: \nl = simple list methods,\nt = trie-based,\nm = mutable trie,\nh = hash table and\ne = Data.Edison.Assoc.TernaryTrie,\ns = using Data.Map.Strict"

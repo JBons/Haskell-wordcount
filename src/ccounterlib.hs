@@ -16,6 +16,7 @@ module CCounterLib where
 
 import           Prelude               hiding (Word)
 
+import           Data.ByteString.Char8 (ByteString, useAsCString)
 import           Foreign.C.String
 import           Foreign.C.Types
 import           Foreign.Marshal.Alloc
@@ -46,13 +47,11 @@ foreign import ccall "libCounterlib.h counts" c_counts :: CString -> Ptr(Ptr Wor
 -- Using C libabry "Counterlib" via FFI
 -- Uses unsafePerformIO to bring the (pure) results back from IO monad.
 {-# NOINLINE counts #-}
-counts :: String -> [(String,Int)]
-counts s = unsafePerformIO $ do
-    -- Allocation of memory and initialisation of the input as CString
-    cs   <- newCAString s  -- Forcing use of 8-bit ASCII strings
-    -- Room for return array of pointers to words
+counts :: ByteString -> [(String,Int)]
+counts s = unsafePerformIO $ useAsCString s $ \cs -> do
+    -- Allocate for return array of pointers to words
     wpa  <- mallocArray 50000 :: IO (Ptr (Ptr Word))
-    -- Room for the Word structures
+    -- Allocate for the Word structures
     heap <- mallocBytes(50000 * 24)
 
     wc <- c_counts cs wpa heap
@@ -62,5 +61,4 @@ counts s = unsafePerformIO $ do
     let result = map (\w -> (word w, count w)) wordlist
     free heap
     free wpa
-    free cs
     return result

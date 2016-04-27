@@ -74,12 +74,6 @@ eCounts :: String ->  [(String, Int)]
 eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
     input =zip (prepare str) (repeat 1)
 
--- 7. Using fast C library through FFI
-
-cTrieCounts :: String -> [(String, Int)]
-cTrieCounts = CT.counts
-
-
 
 -- Replacement for Prelude words function
 -----------------------------------------

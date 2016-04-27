@@ -20,7 +20,7 @@ All the results above spend a lot of time in pre-processing the input as (potent
 * Mutable trie: 0.9 sec
 * Data.Map.Strict: 0.6 sec
 * Hashtable: 0.5 sec
-* Calling C-code: 0.3 sec
+* Calling C-code: 0.08 sec
 * Hybrid hashmap based bag from MBag module: 0.16 sec
 
-Thus two purely functional algorithms (trie, balanced trees) and two mutable ones (Data.Hashtable, MBag) beat the chained shell commands, and the latter is also faster than calling C-code from Haskell.
+Thus two purely functional algorithms (trie, balanced trees) and two mutable ones (Data.Hashtable, MBag) beat the chained shell commands, and the latter comes fairly close to calling C-code from Haskell.
