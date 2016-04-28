@@ -30,7 +30,7 @@ prepare' = C.words . (B.map conv) where
         | otherwise = 32
 
 
--- 1. Simplest possible count with generic list functions
+-- 1.  Simple count with generic list functions
 simpleCounts :: B.ByteString -> [(String, Int)]
 simpleCounts = map (\seq -> (head seq, length seq)).group.sort.prepare
 

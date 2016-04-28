@@ -22,7 +22,7 @@ prepare = words . toLower . map nonLtrToSpace where
     nonLtrToSpace c = if isLetter c then c else ' '
 
 
--- 1. Simplest possible count with generic list functions
+-- 1. Simple count with generic list functions
 simpleCounts :: Text -> [(Text, Int)]
 simpleCounts = fmap (\seq -> (head seq, length seq)).group.sort.prepare
 

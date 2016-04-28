@@ -37,7 +37,7 @@ instance Ord c => Mapping Trie c v where
     lookup trie (c:cs) = do
         tail <- M.lookup c (tails trie)
         lookup tail cs
-    {-# Specialise lookup :: Trie Char Int -> [Char] -> Maybe Int #-}
+    {-# Specialise lookup :: Trie Char Int -> String -> Maybe Int #-}
 
     update f trie []     = trie { value = f  $ value trie }
     update f trie (c:cs) = trie { tails = updated } where
@@ -45,7 +45,7 @@ instance Ord c => Mapping Trie c v where
             Just sub -> M.update (\_ -> Just $ update f sub cs) c (tails trie)
             Nothing  -> M.insert c newbranch (tails trie) where
                 newbranch = update f empty cs
-    {-# Specialise update :: (Maybe Int -> Maybe Int)-> Trie Char Int -> [Char] -> Trie Char Int #-}
+    {-# Specialise update :: (Maybe Int -> Maybe Int)-> Trie Char Int -> String -> Trie Char Int #-}
 
     delete = update (const Nothing)
 
@@ -101,7 +101,7 @@ instance (Show v, Show [c], Ord c) => Show (Trie c v) where
 size :: Ord c => Trie c v -> Int
 size t = 1 + sum (fmap (size.snd) $ M.toList $ tails t)
 
-{- Made T=(Trie c) into a monad with t >>= f defined as follows:
+{- Made Trie into a monad with t >>= f defined as follows:
 -
 - for each key k in t with corresponding value v, take the keys ks of f v. Form new keys k's = (k ++ ks)
 - by concatenating. Replace the key k in t with the keys k's and give them values from (f v).

@@ -1,5 +1,4 @@
--- Trie data structure for counting words in a string built using "basic"
--- components and data structures.
+-- Trie data structure for counting words in Data.Text.
 -- The trie type has been made instance of both Monad and Traversable
 -- (and thus also Functor, Applicative and Foldable) as well as Show.
 -- A new custom type class Mapping is implemented for finite map behaviours.
@@ -103,7 +102,7 @@ instance Show v => Show (Trie v) where
 size :: Trie v -> Int
 size t = 1 + sum (fmap (size.snd) $ M.toList $ tails t)
 
-{- Made T=(Trie c) into a monad with t >>= f defined as follows:
+{- Made Trie  into a monad with t >>= f defined as follows:
 -
 - for each key k in t with corresponding value v, take the keys ks of f v. Form new keys k's = (k ++ ks)
 - by concatenating. Replace the key k in t with the keys k's and give them values from (f v).
