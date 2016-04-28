@@ -7,12 +7,15 @@ import           Control.Monad      (sequence, when)
 import           Data.Char          (isDigit)
 import           Data.Map           (fromList, lookup)
 import           Data.Maybe         (mapMaybe)
+import           Data.Text          (Text,words)
+import           Data.Text.IO       (readFile)
 import           GHC.Exts           (sortWith)
-import           Prelude            hiding (fromList, lookup, words)
+import           Prelude            hiding (fromList, lookup, words, readFile)
 import           System.Environment (getArgs)
 import           System.TimeIt      (timeIt)
 import           Text.Printf        (printf)
 import           WordCounters
+
 
 -- User interface and main IO action
 -- Command line arguments: #top words to show, methods to test, filename
@@ -28,20 +31,20 @@ main = do args <- getArgs
 
 -- Take first command line parameter and map to methdods to run and
 -- descriptive strings to use for each in output
-decode :: [Char] -> [(String -> [(String, Int)], String)]
+decode :: [Char] -> [(Text -> [(Text, Int)], String)]
 decode = mapMaybe (flip lookup methods) where
     methods = fromList
         [ ('l', (simpleCounts, "Using a simple combination of list methods"))
         , ('t', (trieCounts,   "Counting with non-mutable trie"))
-        , ('m', (mTrieCounts,  "Counting with mutable trie"))
         , ('h', (htCounts,     "Counting with hash table"))
         , ('e', (eCounts,      "Using Data.Edison.Assoc.TernaryTrie"))
-        , ('s', (sCounts,      "Counting with Data.Map.Strict")) ]
+        , ('s', (sCounts,      "Counting with Data.Map.Strict"))
+        , ('b', (bCounts,      "Using MBags hash-map bag"))]
 
 
 -- Runs word counting on text using the selected method, printing
 -- n highest-frequency words in the string
-run :: Int -> String -> (String -> [(String, Int)], String) -> IO ()
+run :: Int -> Text -> (Text -> [(Text, Int)], String) -> IO ()
 run n txt method =  do let results = (fst method) txt
                        putStrLn "\n"
                        putStrLn (snd method)

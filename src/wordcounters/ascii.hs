@@ -81,10 +81,9 @@ htCounts string = let size = length words in
                                   Just n  -> H.insert ht key (n+1)
 
 -- 6. Testing StringBag
-
 bCounts :: C.ByteString -> [(String, Int)]
 bCounts string =
-    let pairs = runST $ do bag <- MB.empty 180000
+    let pairs = runST $ do bag <- MB.empty 200000
                            forM_ (prepare' string) (MB.add bag)
                            MB.toList bag
     in map (\(a,b) -> (C.unpack a, b)) pairs
@@ -97,4 +96,4 @@ eCounts str =  E.toSeq $ E.insertSeqWith (+) input E.empty where
 -- 8. Using fast C library through FFI
 
 cTrieCounts :: B.ByteString -> [(String, Int)]
-cTrieCounts = CT.counts 
+cTrieCounts = CT.counts

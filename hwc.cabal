@@ -17,7 +17,8 @@ Extra-source-files:  cbits, include
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Trie
+  exposed-modules:     TTrie
+                     , Trie
                      , MTrie
                      , CCounterLib
                      , WordCounters
@@ -33,6 +34,7 @@ library
                      , bytestring
                      , vector
                      , hashable
+                     , text
   default-language:    Haskell2010
   C-sources:           cbits/libCounterlib.c
   Include-dirs:        include
@@ -46,6 +48,7 @@ executable hwc
   ghc-options:         -O2 -rtsopts -fllvm -pgmlo opt -pgmlc llc
   build-depends:       base
                      , containers
+                     , text
                      , hwc
                      , timeit
   default-language:    Haskell2010
