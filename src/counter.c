@@ -1,4 +1,4 @@
-/*  Fast word counter function using the trie-based code in counterlib.c 
+/*  Fast word counter function using the trie-based code in counterlib.c
  *
  *  Limitation: works only for languages where [a-z] is sufficient. */
 
@@ -33,26 +33,26 @@ int main(int argc, char *argv[])
         printf("Invalid number of lines to show.");
         return(-1);
     }
-    
+
     char *filePath = argv[2];
-    
+
     /* Get file size */
     struct stat fileStat;
     if (stat(filePath, &fileStat) < 0)
-    { 
+    {
         printf("Problem with the source file.");
         return(-1);
     }
     size_t fileSize = fileStat.st_size; // Size in bytes
-    
-    /* Allocate memory for source data string */    
+
+    /* Allocate memory for source data string */
     char *text = calloc(fileSize + 1, sizeof(char));
     if (text == NULL)
     {
         printf("Memory allocation issue. Exiting.");
         return(-1);
     }
-    
+
     /* Read source data string into memory just allocated */
     FILE *file = fopen(filePath,"r");
     if (fread(text, sizeof(char), fileSize, file) != fileSize)
@@ -61,25 +61,24 @@ int main(int argc, char *argv[])
         return(-1);
     }
     fclose(file);
-    text[fileSize] = '\0'; // Ensure null-termination   
+    text[fileSize] = '\0'; // Ensure null-termination
 
     /* Allocate space for words and set array of pointers to the words */
     Word *wordHeap = calloc(MAXUNIQUEWORDS, sizeof(Word));
     Word *words[MAXUNIQUEWORDS];
-   
+
     /* Get counts of all words in the text; wc = number of unique words */
     int wc = counts(text, words, wordHeap);
-    
+
     /* Sort the words by frequency */
     qsort(words, wc, sizeof(Word*), compare);
-    
+
     /* Print the results */
-    if (wc<lines) lines = wc; // Ensure that print only existing lines    
+    if (wc<lines) lines = wc; // Ensure that print only existing lines
     for (int i = 0; i < lines; i++)
-        printf("%s : %i \n", words[i]->word, words[i]->count);    
-        
+        printf("%s : %i \n", words[i]->word, words[i]->count);
+
     free(text);
-    free(wordHeap);    
+    free(wordHeap);
     return 0;
 }
-

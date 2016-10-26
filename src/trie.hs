@@ -7,7 +7,7 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
--- {-# LANGUAGE Strict #-} : Try as soon as GHC 8 is out!
+-- {-# LANGUAGE Strict #-} -- Enabled in GHC 8.x but no apparent impact on performance detected
 
 module Trie where
 

@@ -12,7 +12,7 @@ category:            Example
 build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
-Extra-source-files:  cbits, include
+Extra-source-files:
 
 
 library
@@ -24,7 +24,7 @@ library
                      , WordCounters
                      , WordCounters.ASCII
                      , MBag
-  ghc-options:         -O2 -rtsopts -fllvm -pgmlo opt -pgmlc llc
+  ghc-options:         -O2 
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , array
