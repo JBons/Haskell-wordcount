@@ -1,5 +1,5 @@
 name:                hwc
-version:             0.3.6.0
+version:             0.3.6.1
 synopsis:            Testing different word counting algorithms in Haskell
 description:         Please see README.md
 homepage:            https://github.com/JBons/Haskell-wordcount#readme
@@ -7,7 +7,7 @@ license:             GPL-3
 license-file:        LICENSE
 author:              Juhani Bonsdorff
 maintainer:          Juhani.Bonsdorff@gmail.com
-copyright:           2015-2016 Juhani Bonsdorff
+copyright:           2015-2017 Juhani Bonsdorff
 category:            Example
 build-type:          Simple
 -- extra-source-files:

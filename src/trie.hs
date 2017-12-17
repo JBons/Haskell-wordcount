@@ -92,7 +92,7 @@ instance Ord c=> Applicative (Trie c) where
     (<*>) = ap
     pure  = return
 
-instance (Show v, Show [c], Ord c) => Show (Trie c v) where
+instance (Show v, Show c, Ord c) => Show (Trie c v) where
     show t = summary ++ display (take 15 graph) where
                  graph = toList t
                  summary = printf "Trie with %v key-value pairs, starting with:\n" (length graph)
