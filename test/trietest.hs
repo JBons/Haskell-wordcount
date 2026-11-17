@@ -9,7 +9,6 @@ module Main where
 import Trie
 import Test.QuickCheck
 import Text.Show.Functions
-import Control.Monad.Identity
 import Data.Functor.Identity
 import Data.Functor.Compose
 import Data.Traversable
