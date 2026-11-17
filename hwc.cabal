@@ -1,5 +1,5 @@
 name:                hwc
-version:             0.3.8.0
+version:             0.3.9.0
 synopsis:            Testing different word counting algorithms in Haskell
 description:         Please see README.md
 homepage:            https://github.com/JBons/Haskell-wordcount#readme

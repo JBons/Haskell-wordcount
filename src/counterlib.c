@@ -22,7 +22,7 @@ typedef struct Node Node;
 
 /* Global variables and constants - see if can make these into static instead */
 Node *nextnode;  // Next free node address
-Node *maxnode;   // Last possible node address
+Node *maxnode;   // One past the last node in the arena
 
 /* Function prototypes */
 Node* newnode();           // Initialise new trie node
@@ -41,7 +41,7 @@ int counts(char *text, Word *words[], Word *wordheap)
     words[0] = wordheap; // Synchronise the array and the Word heap
 
     Node *nodeheap = calloc(MAXTRIESIZE, sizeof(Node));
-    maxnode = nodeheap + MAXTRIESIZE * sizeof(Node);
+    maxnode = nodeheap + MAXTRIESIZE;
     nextnode = nodeheap;
     Node *lexicon  = newnode();
 
@@ -57,7 +57,7 @@ int counts(char *text, Word *words[], Word *wordheap)
 /* Update pos of next and return pointer */
 Node* newnode()
 {
-    if (nextnode > maxnode) abort();
+    if (nextnode >= maxnode) abort();
     Node *node = nextnode;
     nextnode++;
     return node;
