@@ -1,30 +1,30 @@
 module WordCounters where
 
-import           Prelude                       hiding (filter, map, words)
+import           Prelude                       hiding (map, words)
 
 import           Control.Monad                 (forM_)
 import           Control.Monad.ST              (ST, runST)
 import           Data.Char                     (isLetter)
 import           Data.List                     (group, sort)
 
-import qualified CCounterLib                   as CT
 import qualified Data.Edison.Assoc.TernaryTrie as E
 import qualified Data.HashTable.Class          as H
 import qualified Data.HashTable.ST.Linear      as HL
 import qualified Data.Map.Strict               as M
-import           Data.Text                     (Text, filter, map, pack,
+import           Data.Text                     (Text, map, pack,
                                                 toLower, unpack, words)
 import qualified MBag                          as MB
 import qualified TTrie                         as T
 
 -- Common helper: string to lower-case words
+prepare :: Text -> [Text]
 prepare = words . toLower . map nonLtrToSpace where
     nonLtrToSpace c = if isLetter c then c else ' '
 
 
 -- 1. Simple count with generic list functions
 simpleCounts :: Text -> [(Text, Int)]
-simpleCounts = fmap (\seq -> (head seq, length seq)).group.sort.prepare
+simpleCounts input = [(w, 1 + length ws) | w:ws <- group (sort (prepare input))]
 
 -- 2. Implements lexicon as Trie to count occurences of the words in a list
 trieCounts :: Text -> [(Text, Int)]
@@ -43,13 +43,13 @@ sCounts str = f (prepare str) where
 type HashTable s k v = HL.HashTable s k v
 
 htCounts :: Text -> [(Text, Int)]
-htCounts string = let size = length words in
+htCounts string = let size = length ws in
                runST $ do
                        lexicon <- H.newSized size ::  ST s (HashTable s Text Int)
-                       forM_ words (increment lexicon)
+                       forM_ ws (increment lexicon)
                        H.toList lexicon
     where
-        words =prepare string
+        ws = prepare string
         --Increment hashtable value for a key or create value 1 for new key
         increment :: HashTable s Text Int -> Text -> ST s ()
         increment ht key = do cur <- H.lookup ht key
@@ -72,4 +72,6 @@ bCounts string =
                   forM_ ws (MB.add bag)
                   MB.toList bag
     -- Use log TTR of 0.8 as estimate for # unique words, keep table sparse
-    where sizeFor l = floor (8 * (fromIntegral l ** 0.8))
+    where
+        sizeFor :: Int -> Int
+        sizeFor l = floor (8 * (fromIntegral l ** (0.8 :: Double)))

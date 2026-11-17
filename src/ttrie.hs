@@ -3,20 +3,18 @@
 -- (and thus also Functor, Applicative and Foldable) as well as Show.
 -- A new custom type class Mapping is implemented for finite map behaviours.
 
-{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
--- {-# LANGUAGE Strict #-} : Try as soon as GHC 8 is out!
 
 module TTrie where
 
-import           Control.Applicative (Applicative, pure, (<$>), (<*>))
-import           Control.Monad       hiding (sequence)
+import           Control.Monad       (ap)
 import qualified Data.Foldable       as F
 import qualified Data.Map.Strict     as M
-import           Data.Text           (Text, append, cons, length,head,tail,empty)
-import           Data.Traversable
-import           Prelude             hiding (lookup,sequence,length,head,tail)
+import           Data.Text           (Text)
+import qualified Data.Text           as T
+import           Data.Traversable    (foldMapDefault, fmapDefault)
+import           Prelude             hiding (lookup)
 import           Text.Printf
 
 -- Will use existence of value to mark end of word
@@ -33,47 +31,44 @@ instance Mapping Trie v where
 
     empty = Trie { value = Nothing, tails = M.empty }
 
-    lookup trie txt = if length txt == 0
-        then value trie
-        else let (c,cs) = (head txt, tail txt)
-             in do tail <- M.lookup c (tails trie)
-                   lookup tail cs
+    lookup trie txt = case T.uncons txt of
+        Nothing -> value trie
+        Just (c,cs) -> do
+            child <- M.lookup c (tails trie)
+            lookup child cs
 
-    update f trie txt = if length txt == 0
-        then trie { value = f  $ value trie }
-        else let (c,cs) = (head txt, tail txt)
-        in trie { tails = updated c cs} where
+    update f trie txt = case T.uncons txt of
+        Nothing -> trie { value = f (value trie) }
+        Just (c,cs) -> trie { tails = updated c cs }
+      where
         updated c cs = case M.lookup c (tails trie) of
             Just sub -> M.update (\_ -> Just $ update f sub cs) c (tails trie)
             Nothing  -> M.insert c newbranch (tails trie) where
-                newbranch = update f TTrie.empty cs
+                newbranch = update f empty cs
 
     delete = update (const Nothing)
 
     toList trie = rv ++ concatMap builder (M.toList $ tails trie) where
         rv = case value trie of
             Nothing -> []
-            Just v  -> [(Data.Text.empty, v)]
+            Just v  -> [(T.empty, v)]
         builder :: (Char, Trie v) -> [(Text,v)]
-        builder (c,t) = case value t of
-                           Nothing -> prefix c $ toList t
-                           Just v  -> prefix c $ toList t
-                       where prefix c ll = fmap (\(s,v) -> (c `cons` s,v)) ll
+        builder (c,t) = [(T.cons c s,v) | (s,v) <- toList t]
 
 add :: v -> Trie v -> Text -> Trie v
-add value = update (const (Just value) )
+add v = update (const (Just v))
 
 -- If key is repeated, then later value overrides earlier value
 fromList :: [(Text,v)] -> Trie v
-fromList = foldl (\ t (k,v) -> add v t k ) TTrie.empty
+fromList = foldl (\ t (k,v) -> add v t k ) empty
 
 instance Eq v => Eq (Trie v) where
     t1 == t2 = toList t1 == toList t2
 
 instance Traversable Trie where
    traverse f t = Trie <$> root <*> children  where
-       root     = sequenceA( fmap f (value t) )
-       children = sequenceA $ M.map (traverse f) (tails t)
+       root     = traverse f (value t)
+       children = traverse (traverse f) (tails t)
 
 instance F.Foldable Trie where
     foldMap = foldMapDefault
@@ -84,19 +79,35 @@ instance Functor Trie where
 -- Notice that (like with Data.Map et al.) Foldable.toList makes list of only values and unlike
 -- Trie.toList does NOT produce an association list (from which the trie can be reconstructed).
 
+-- WARNING: This is not a lawful Monad: associativity fails when concatenated
+-- keys collide. fromList keeps only the last value at a key, so an intermediate
+-- bind can discard a value that the other grouping would still use. Example
+-- (with OverloadedStrings for the Text keys):
+--   m   = fromList [("", 0), ("a", 1)]
+--   f 0 = fromList [("a", 0)]
+--   f _ = fromList [("", 1)]
+--   g 0 = fromList [("x", 0)]
+--   g _ = empty
+-- Then toList ((m >>= f) >>= g) == [], but
+-- toList (m >>= (\x -> f x >>= g)) == [("ax", 0)].
+-- Both identity laws hold under the association-list equality used by Eq.
 instance Monad Trie where
-    (>>=) t f = let tl = toList t in (fromList.concat) (map g tl) where
-       g (k,v) = map (\(a,b) -> (k `append` a, b)) (toList (f v))
-    return v = add v TTrie.empty Data.Text.empty
+    (>>=) t f = fromList (concatMap g (toList t)) where
+       g (k,v) = map (\(a,b) -> (T.append k a, b)) (toList (f v))
 
+-- WARNING: Using ap also makes this Applicative unlawful (composition fails).
+-- With OverloadedStrings, let u = fromList [("", id), ("a", id)],
+--      v = fromList [("", id), ("aa", id)],
+--      w = fromList [("", 0), ("a", 1)].
+-- lookup (pure (.) <*> u <*> v <*> w) "aa" == Just 0, whereas
+-- lookup (u <*> (v <*> w)) "aa" == Just 1.
 instance Applicative Trie where
     (<*>) = ap
-    pure  = return
+    pure v = add v empty T.empty
 
 instance Show v => Show (Trie v) where
     show t = display (take 15 graph) where
                  graph = toList t
---                 summary = printf "Trie with %v key-value pairs, starting with:\n" (Prelude.length graph)
                  display = concatMap ( \(k,v) ->  printf "%15s :   %4v \n" (show k) (show v) )
 
 size :: Trie v -> Int

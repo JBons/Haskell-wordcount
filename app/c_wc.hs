@@ -8,15 +8,12 @@
 
 module Main where
 
-import           Control.Monad         (forM, liftM)
-import           Data.Char             hiding (isSpace)
-import           Data.List             (reverse)
-import           GHC.Exts              (sortWith)
-import           GHC.Exts              hiding (Word)
-import           Prelude               hiding (words)
+import           Data.List             (sortOn)
+import           Prelude               hiding (Word)
 import           System.Environment
 import           System.TimeIt
-import           Text.Printf
+import           Text.Printf           (printf)
+import           Text.Read             (readMaybe)
 
 import           Foreign.C.String
 import           Foreign.C.Types
@@ -32,10 +29,10 @@ instance Storable Word where
     peek ptr = do
         let chrP = (castPtr ptr)    :: CString
         let intP = (plusPtr ptr 20) :: Ptr CInt
-        word  <- peekCString chrP
-        count <- peek intP
-        return $ Word {word = word, count = fromIntegral count}
-    poke ptr w = do return () -- do nothing as not needed
+        text <- peekCString chrP
+        n <- peek intP
+        pure Word {word = text, count = fromIntegral n}
+    poke _ _ = pure () -- do nothing as not needed
     sizeOf _ = 24
     alignment _ = 4
 
@@ -52,19 +49,26 @@ wordFreqs s = do
     plist <- peekArray size wpa
     wordlist <- mapM peek plist
     let raw = map (\w -> (word w, count w)) wordlist
-    let result = reverse $ sortWith snd raw
-    return result
+    let result = reverse $ sortOn snd raw
+    pure result
 
+main :: IO ()
 main = timeIt proc --get running time
 
 --Actual main UI task
-proc = do args <- getArgs
-          let n = (read $ args!! 0) :: Int
-          let filename  = args!! 1
-          text   <- readFile filename
-          result <- wordFreqs text
-          display $ take n result
+proc :: IO ()
+proc = do
+    args <- getArgs
+    case args of
+        rawN : filename : _
+            | Just n <- readMaybe rawN :: Maybe Integer
+            , n >= 0, n <= toInteger (maxBound :: Int) -> do
+                text <- readFile filename
+                result <- wordFreqs text
+                display (take (fromInteger n) result)
+        _ -> fail "Usage: c_wc lines filename"
 
 --Pretty-print the results
-display xs = mapM putStrLn $ fmap disp xs where
+display :: [(String, Int)] -> IO ()
+display = mapM_ (putStrLn . disp) where
     disp (x,y) = printf "%15s :   %4d" x y

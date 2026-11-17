@@ -33,10 +33,10 @@ instance Storable Word where
     peek ptr = do
         let chrP = castPtr ptr    :: CString
         let intP = plusPtr ptr 20 :: Ptr CInt
-        word  <- peekCString chrP
-        count <- peek intP
-        return Word {word = word, count = fromIntegral count}
-    poke ptr w = undefined -- do nothing as not needed
+        text <- peekCString chrP
+        n <- peek intP
+        pure Word {word = text, count = fromIntegral n}
+    poke _ _ = undefined -- do nothing as not needed
     sizeOf _ = 24
     alignment _ = 4
 
@@ -61,4 +61,4 @@ counts s = unsafePerformIO $ useAsCString s $ \cs -> do
     let result = map (\w -> (word w, count w)) wordlist
     free heap
     free wpa
-    return result
+    pure result

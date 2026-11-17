@@ -1,10 +1,7 @@
 module WordCounters.ASCII where
 
-import           Prelude                       hiding (words)
-
 import           Control.Monad                 (forM_)
 import           Control.Monad.ST              (ST, runST)
-import           Data.Char                     (isLetter, toLower)
 import           Data.List                     (group, sort)
 
 import qualified CCounterLib                   as CT
@@ -20,10 +17,10 @@ import qualified Trie                          as T
 
 -- Common helper: string to lower-case words
 prepare :: C.ByteString -> [String]
-prepare = (map C.unpack) . prepare'
+prepare = map C.unpack . prepare'
 
 prepare' :: C.ByteString -> [C.ByteString]
-prepare' = C.words . (B.map conv) where
+prepare' = C.words . B.map conv where
     conv c
         | c > 96 && c < 123 = c
         | c > 64 && c < 91  = c + 32
@@ -32,7 +29,7 @@ prepare' = C.words . (B.map conv) where
 
 -- 1.  Simple count with generic list functions
 simpleCounts :: B.ByteString -> [(String, Int)]
-simpleCounts = map (\seq -> (head seq, length seq)).group.sort.prepare
+simpleCounts input = [(w, 1 + length ws) | w:ws <- group (sort (prepare input))]
 
 
 -- 2. Implements lexicon as Trie to count occurences of the words in a list
@@ -46,15 +43,14 @@ trieCounts = T.toList . buildTrie . prepare  where
 
 -- 3. Counts frequencies of strings in a list using mutable trie in the ST monad
 mTrieCounts :: B.ByteString -> [(String, Int)]
-mTrieCounts string = let size = length words in
-               runST $ do
-                       lexicon <- MT.empty ::  ST s (MT.Trie s Int)
-                       forM_ words (MT.update byIncrements lexicon)
-                       MT.toList lexicon
-    where
-        words =prepare string
-        byIncrements Nothing   = Just 1
-        byIncrements (Just n)  = Just (n+1)
+mTrieCounts string = runST $ do
+    lexicon <- MT.empty :: ST s (MT.Trie s Int)
+    forM_ ws (MT.update byIncrements lexicon)
+    MT.toList lexicon
+  where
+    ws = prepare string
+    byIncrements Nothing = Just 1
+    byIncrements (Just n) = Just (n+1)
 
 
 -- 4. Using Data.Map.Strict to count the words
@@ -66,13 +62,13 @@ sCounts str = f (prepare str) where
 type HashTable s k v = HL.HashTable s k v
 
 htCounts :: B.ByteString -> [(String, Int)]
-htCounts string = let size = length words in
+htCounts string = let size = length ws in
                runST $ do
                        lexicon <- H.newSized size ::  ST s (HashTable s String Int)
-                       forM_ words (increment lexicon)
+                       forM_ ws (increment lexicon)
                        H.toList lexicon
     where
-        words =prepare string
+        ws = prepare string
         --Increment hashtable value for a key or create value 1 for new key
         increment :: HashTable s String Int -> String -> ST s ()
         increment ht key = do cur <- H.lookup ht key

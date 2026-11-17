@@ -4,19 +4,16 @@
 -- (and thus also Functor, Applicative and Foldable) as well as Show.
 -- A new custom type class Mapping is implemented for finite map behaviours.
 
-{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
--- {-# LANGUAGE Strict #-} -- Enabled in GHC 8.x but no apparent impact on performance detected
 
 module Trie where
 
-import           Control.Applicative (Applicative, pure, (<$>), (<*>))
-import           Control.Monad       hiding (sequence)
+import           Control.Monad       (ap)
 import qualified Data.Foldable       as F
 import qualified Data.Map.Strict     as M
-import           Data.Traversable
-import           Prelude             hiding (lookup, sequence)
+import           Data.Traversable    (foldMapDefault, fmapDefault)
+import           Prelude             hiding (lookup)
 import           Text.Printf
 
 -- Will use existence of value to mark end of word
@@ -35,8 +32,8 @@ instance Ord c => Mapping Trie c v where
 
     lookup trie []     = value trie
     lookup trie (c:cs) = do
-        tail <- M.lookup c (tails trie)
-        lookup tail cs
+        child <- M.lookup c (tails trie)
+        lookup child cs
     {-# Specialise lookup :: Trie Char Int -> String -> Maybe Int #-}
 
     update f trie []     = trie { value = f  $ value trie }
@@ -54,25 +51,22 @@ instance Ord c => Mapping Trie c v where
             Nothing -> []
             Just v  -> [([],v)]
         builder :: Ord c => (c, Trie c v) -> [([c],v)]
-        builder (c,t) = case value t of
-                           Nothing -> prefix c $ toList t
-                           Just v  -> prefix c $ toList t
-                       where prefix c ll = fmap (\(s,v) -> (c:s,v)) ll
+        builder (c,t) = [(c:s,v) | (s,v) <- toList t]
 
 add :: Ord c => v -> Trie c v -> [c] -> Trie c v
-add value = update (\_ -> Just value )
+add v = update (const (Just v))
 
 -- If key is repeated, then later value overrides earlier value
 fromList :: Ord c => [([c],v)] -> Trie c v
 fromList = foldl (\ t (k,v) -> add v t k ) empty
 
-instance (Ord c, Eq c, Eq v) => Eq (Trie c v) where
+instance (Ord c, Eq v) => Eq (Trie c v) where
     t1 == t2 = toList t1 == toList t2
 
 instance Ord c => Traversable (Trie c) where
    traverse f t = Trie <$> root <*> children  where
-       root     = sequenceA( fmap f (value t) )
-       children = sequenceA $ M.map (traverse f) (tails t)
+       root     = traverse f (value t)
+       children = traverse (traverse f) (tails t)
 
 instance Ord c => F.Foldable (Trie c) where
     foldMap = foldMapDefault
@@ -83,14 +77,30 @@ instance Ord c => Functor (Trie c) where
 -- Notice that (like with Data.Map et al.) Foldable.toList makes list of only values and unlike
 -- Trie.toList does NOT produce an association list (from which the trie can be reconstructed).
 
+-- WARNING: This is not a lawful Monad: associativity fails when concatenated
+-- keys collide. fromList keeps only the last value at a key, so an intermediate
+-- bind can discard a value that the other grouping would still use. Example:
+--   m   = fromList [("", 0), ("a", 1)]
+--   f 0 = fromList [("a", 0)]
+--   f _ = fromList [("", 1)]
+--   g 0 = fromList [("x", 0)]
+--   g _ = empty
+-- Then toList ((m >>= f) >>= g) == [], but
+-- toList (m >>= (\x -> f x >>= g)) == [("ax", 0)].
+-- Both identity laws hold under the association-list equality used by Eq.
 instance Ord c => Monad (Trie c) where
-    (>>=) t f = let tl = toList t in (fromList.concat) (map g tl) where
+    (>>=) t f = fromList (concatMap g (toList t)) where
        g (k,v) = map (\(a,b) -> (k++a, b)) (toList (f v))
-    return v = add v empty []
 
+-- WARNING: Using ap also makes this Applicative unlawful (composition fails).
+-- With u = fromList [("", id), ("a", id)],
+--      v = fromList [("", id), ("aa", id)],
+--      w = fromList [("", 0), ("a", 1)],
+-- lookup (pure (.) <*> u <*> v <*> w) "aa" == Just 0, whereas
+-- lookup (u <*> (v <*> w)) "aa" == Just 1.
 instance Ord c=> Applicative (Trie c) where
     (<*>) = ap
-    pure  = return
+    pure v = add v empty []
 
 instance (Show v, Show c, Ord c) => Show (Trie c v) where
     show t = summary ++ display (take 15 graph) where

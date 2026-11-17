@@ -2,7 +2,6 @@ module MBag where
 
 import           Control.Monad.ST
 import qualified Data.ByteString             as C
-import           Data.Char                   (ord)
 import           Data.Hashable               (hash, Hashable)
 import qualified Data.Map.Strict             as M
 import           Data.STRef                  as ST
@@ -21,7 +20,7 @@ empty :: Int -> ST s (StringBag s e)
 empty n = do   c <- MU.new n
                e <- MV.new n
                m <- ST.newSTRef M.empty
-               return SB {counts = c, els = e, collided = m, tSize = n}
+               pure SB {counts = c, els = e, collided = m, tSize = n}
 
 add :: (Ord e, Hashable e) =>StringBag s e -> e -> ST s ()
 add (SB cs es coll size) str =
@@ -61,4 +60,4 @@ toList bag = do m <- ST.readSTRef (collided bag)
                 let rps = V.zip es csv
                 let ps = V.filter ((>0).snd) rps
                 let l = V.toList ps
-                return (l ++ cl)
+                pure (l ++ cl)

@@ -11,7 +11,6 @@ import           Control.Monad    (forM_)
 import           Control.Monad.ST (ST)
 import           Data.Array.ST    (Ix, STArray, getAssocs, newArray, readArray,
                                    writeArray)
-import qualified Data.Map         as M
 import           Data.STRef
 import           Prelude          hiding (lookup)
 
@@ -32,7 +31,7 @@ instance SMapping Trie s v where
     -- Implement empty
     empty = do newRef   <- newSTRef Nothing
                newTails <- newArray ('a','z') Nothing
-               return Trie { value = newRef, tails = newTails }
+               pure Trie { value = newRef, tails = newTails }
 
     -- Implement lookup
     lookup trie ""  = readSTRef $ value trie
@@ -40,19 +39,16 @@ instance SMapping Trie s v where
     lookup trie (c:cs) = do
         match <- readArray (tails trie) c
         case match of
-            Just tail -> lookup tail cs
-            Nothing   -> return Nothing
+            Just child -> lookup child cs
+            Nothing    -> pure Nothing
 
     -- Implement update
-    update f trie "" = do
-        let vref = value trie
-        val <- readSTRef vref
-        modifySTRef' vref f
+    update f trie "" = modifySTRef' (value trie) f
 
     update f trie (c:cs) = do
         match <- readArray (tails trie) c
         case match of
-            Just tail -> update f tail cs
+            Just child -> update f child cs
             Nothing   -> do
                 newEmpty <- empty
                 writeArray (tails trie) c (Just newEmpty)
@@ -72,24 +68,25 @@ instance SMapping Trie s v where
                 ends <- toList t
                 let upd = prefix c ends
                 case val of
-                    Nothing -> return upd
-                    Just v  -> return $ ([c],v) : upd
+                    Nothing -> pure upd
+                    Just v  -> pure $ ([c],v) : upd
 
 -- Turn array of (Maybe a) values to list of (ind, a) tuples
 toAssocList :: Ix i => STArray s i (Maybe v) -> ST s [ (i,v) ]
 toAssocList a = do
     pairs <- getAssocs a
-    return [ (ind, v) | (ind, Just v) <- pairs]
+    pure [ (ind, v) | (ind, Just v) <- pairs]
 
 -- Helper for toList: prefixes an element to the first pos in list of tuples
-prefix c ll = fmap (\(s,v) -> (c:s,v)) ll
+prefix :: c -> [([c], v)] -> [([c], v)]
+prefix c = map (\(s,v) -> (c:s,v))
 
 add :: v -> Trie s v -> String -> ST s ()
-add value = update (\_ -> Just value )
+add v = update (const (Just v))
 
 -- If key is repeated, then later value overrides earlier value
 fromList :: [ (String, v) ] -> ST s (Trie s v)
 fromList pairs = do
     t <- empty
     forM_ pairs (\ (k,v) -> add v t k )
-    return t
+    pure t
