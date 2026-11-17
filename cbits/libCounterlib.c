@@ -5,7 +5,8 @@
  * all other bytes separate words. This is not a Unicode word counter.
  *
  * Nodes are allocated together in an arena owned by each counting call.
- * Results are reconstructed from the leaves upwards into caller-owned buffers.
+ * Traversal accumulates the path in a shared prefix buffer, copying each
+ * completed word once into the caller-owned output buffers.
  */
 #include "../include/libCounterlib.h"
 #include <limits.h>
@@ -92,40 +93,33 @@ static int fill(Arena *arena, Node *trie, const char *text, size_t length) {
   return 0;
 }
 
-/* Reconstruct words bottom-up, visiting terminal nodes before their children
+/* Reconstruct words top-down, visiting terminal nodes before their children
  * and child slots in a-z order. The resulting pointer array is alphabetical.
- * A terminal node emits an empty suffix; each returning parent prepends its
- * edge's letter to the words emitted by that child. */
-static int dump(const Node *trie, Output *output) {
+ * prefix[0..depth) is the path to this node; bytes after it may be stale.
+ * Each descent writes one letter, and each terminal copies its complete word
+ * once, avoiding repeated suffix copies and scans while unwinding recursion.
+ * fill has checked that every path fits in MAXWORDLENGTH - 1 bytes. */
+static int dump(const Node *trie, Output *output, char *prefix, size_t depth) {
   if (trie->value) {
     if (output->used >= MAXUNIQUEWORDS)
       return COUNTER_TOO_MANY_WORDS;
     /* Pointer arithmetic advances by Word structures, not bytes. */
     Word *word = &output->heap[output->used];
-    word->word[0] = '\0'; /* Output buffers need not be zero-initialized. */
+    memcpy(word->word, prefix, depth);
+    word->word[depth] = '\0'; /* Do not copy stale suffix bytes. */
     word->count = trie->value;
     output->words[output->used++] = word;
   }
 
-  /* Only results in this child's output window receive its leading letter.
-   * Exclude a word ending at this node and results from earlier siblings. */
-  size_t appendfrom = output->used;
   for (int i = 0; i < 26; ++i) {
     const Node *child = trie->child[i];
     if (child != NULL) {
-      int status = dump(child, output);
+      /* Siblings reuse the same buffer. The caller's depth restores the
+       * logical prefix length on return; no copying or clearing is needed. */
+      prefix[depth] = (char)('a' + i);
+      int status = dump(child, output, prefix, depth + 1);
       if (status < 0)
         return status;
-      for (size_t j = appendfrom; j < output->used; ++j) {
-        /* Preserve the suffix before writing the new first letter. */
-        char buffer[MAXWORDLENGTH];
-        strcpy(buffer, output->words[j]->word);
-        output->words[j]->word[0] = (char)('a' + i);
-        output->words[j]->word[1] = '\0';
-        /* fill has already checked the length of every complete word. */
-        strcat(output->words[j]->word, buffer);
-      }
-      appendfrom = output->used;
     }
   }
   return 0;
@@ -150,8 +144,11 @@ int counts_n(const char *text, size_t length, Word **words, Word *wordheap) {
   Node *trie = newnode(&arena);
   int status = trie == NULL ? COUNTER_ARENA_FULL
                            : fill(&arena, trie, text, length);
-  if (status == 0)
-    status = dump(trie, &output);
+  if (status == 0) {
+    /* One scratch buffer per call, shared by all recursive traversal frames. */
+    char prefix[MAXWORDLENGTH];
+    status = dump(trie, &output, prefix, 0);
+  }
   /* Free the arena on both success and failure. Output on failure is partial
    * and must be discarded; the caller still owns and frees its two buffers. */
   free(nodeheap);

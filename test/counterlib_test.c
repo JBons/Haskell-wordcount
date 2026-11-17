@@ -39,10 +39,27 @@ static void *thread_main(void *unused) {
   return NULL;
 }
 
+/* Returning from a long branch must not leave suffix bytes in a shorter
+ * sibling. Also check words that are prefixes of others and alphabetical order. */
+static void check_reconstruction(void) {
+  Word heap[MAXUNIQUEWORDS];
+  Word *words[MAXUNIQUEWORDS];
+  const char *expected[] = {"a", "abcdefghijklmnopqrs", "ant", "ants",
+                            "b", "bat", "be", "z"};
+  memset(heap, 0xa5, sizeof heap);
+  assert(counts("z be bat b ants ant abcdefghijklmnopqrs a ANT", words, heap) == 8);
+  for (int i = 0; i < 8; ++i) {
+    assert(words[i] == &heap[i]);
+    assert(strcmp(words[i]->word, expected[i]) == 0);
+    assert(words[i]->count == (i == 2 ? 2 : 1));
+  }
+}
+
 int main(void) {
   Word heap[MAXUNIQUEWORDS];
   Word *words[MAXUNIQUEWORDS];
   check_words();
+  check_reconstruction();
 
   const char bytes[] = {'A', '\0', 'b', (char)0xff, 'A'};
   assert(counts_n(bytes, sizeof bytes, words, heap) == 2);
