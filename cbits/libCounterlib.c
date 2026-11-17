@@ -1,143 +1,179 @@
-/*  Fast word counter library to be accessed from Haskell
+/* Fast word counter library to be accessed from Haskell.
  *
- *  Implemented as a custom-built fast trie, which uses fixed-size
- *  pointer arrays for child nodes, indexed by the lower-case
- *  ASCII characters [a-z].
- *  Limitation: works only for languages where [a-z] is sufficient.
+ * The trie uses fixed-size arrays of child pointers, one slot for each
+ * lower-case ASCII letter [a-z]. Upper-case letters use the same slots;
+ * all other bytes separate words. This is not a Unicode word counter.
+ *
+ * Nodes are allocated together in an arena owned by each counting call.
+ * Results are reconstructed from the leaves upwards into caller-owned buffers.
  */
-
-#include "libCounterlib.h" // Separate header file to allow for eventual Haskell integration
-#include <ctype.h>
+#include "../include/libCounterlib.h"
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Declaration of the node struct for the trie */
-struct Node {
+/* A positive value marks the end of a word and stores its frequency.
+ * A terminal node may also have children (for example, "a" and "ant"). */
+typedef struct Node {
   int value;
-  struct Node *child[26]; // One slot for each letter
-};
-typedef struct Node Node;
+  struct Node *child[26]; /* One slot for each letter; NULL means no child. */
+} Node;
 
-/* Global variables and constants - see if can make these into static instead */
-Node *nextnode; // Next free node address
-Node *maxnode;  // One past the last node in the arena
+/* Allocation state is local to a call, so separate calls cannot overwrite
+ * each other's next-free-node pointer. calloc initializes all nodes to zero. */
+typedef struct Arena {
+  Node *next; /* Next free node, including the root on the first allocation. */
+  Node *end; /* One past the last node. */
+} Arena;
 
-/* Function prototypes */
-Node *newnode();           // Initialise new trie node
-void fill(Node *, char *); // Build trie from string
-int dump(Node *, Word **); // Dumps trie to an array of Word structs
+/* The pointer array refers into the contiguous Word heap. Keeping the heap
+ * base separately avoids using words[0] as both storage and an output entry.
+ * used replaces the former static traversal index and starts at zero per call. */
+typedef struct Output {
+  Word **words;
+  Word *heap;
+  size_t used;
+} Output;
 
-/* The counting function to be used from Haskell.
- * Returns the number of unique words.
- * Parameters are:
- * text:     input string (null-terminated);
- * words:    array of pointers to Word structures holding the unique words and
- * their counts;
- * wordheap: memory allocated for the Word sructures
- * Caller is responsible for allocating memory for words and wordheap */
-int counts(char *text, Word *words[], Word *wordheap) {
-  words[0] = wordheap; // Synchronise the array and the Word heap
-
-  Node *nodeheap = calloc(MAXTRIESIZE, sizeof(Node));
-  maxnode = nodeheap + MAXTRIESIZE;
-  nextnode = nodeheap;
-  Node *lexicon = newnode();
-
-  fill(lexicon, text);
-
-  int wc = dump(lexicon, words);
-
-  free(nodeheap);
-
-  return wc;
+/* Reserve one zero-initialized node. The end pointer is never dereferenced;
+ * return NULL when full so the caller can report an error and free the arena. */
+static Node *newnode(Arena *arena) {
+  if (arena->next >= arena->end)
+    return NULL;
+  return arena->next++;
 }
 
-/* Update pos of next and return pointer */
-Node *newnode() {
-  if (nextnode >= maxnode)
-    abort();
-  Node *node = nextnode;
-  nextnode++;
-  return node;
+/* Test for [a-zA-Z], independently of the current locale. */
+static bool letter(unsigned char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-/*  Test if char belongs to [a-zA-z] */
-static inline bool letter(char c) {
-  if ((c > 64 && c < 91) || (c > 96 && c < 123))
-    return (true);
-  else
-    return (false);
+/* Map a letter to 0..25, treating A=a, B=b, etc. Requires letter(c) == true. */
+static unsigned int toInd(unsigned char c) {
+  return c >= 'a' ? c - 'a' : c - 'A';
 }
 
-/*  Make letters into index 0..25.
-*   ONLY WORKS FOR [a-zA-Z]         */
-static inline char toInd(char c) {
-  if (c < 91)
-    return (c - 65);
-  else
-    return (c - 97);
-}
+/* Add each word to the trie, incrementing the node at its final letter.
+ * Explicit byte bounds allow embedded NULs and avoid reading beyond the input.
+ * Returns zero on success or a negative CounterError; a partial trie is never
+ * dumped after an error. */
+static int fill(Arena *arena, Node *trie, const char *text, size_t length) {
+  size_t i = 0;
+  while (i < length) {
+    /* Skip separators, including NUL bytes in the length-delimited input. */
+    while (i < length && !letter((unsigned char)text[i]))
+      ++i;
+    if (i == length)
+      break;
 
-/* Build the trie by adding words from the string.
-   The actual count comes at the last letter.*/
-void fill(Node *trie, char *string) {
-  int i = 0;         // index into the string
-  Node *node = trie; // initialise at root node
-
-  while (true) {
-    while (!letter(string[i])) {
-      if (string[i] == 0)
-        return; // Exit function on terminal null character
-      i++;      // Skip other non-letters
-    }
-
-    while (letter(string[i])) // then process while have letters
-    {
-      char c =
-          toInd(string[i]); // upper and lower case to index where A=a=0, Z=z=25
-      if (node->child[c] == NULL)
-        node->child[c] = newnode();
-      node = node->child[c];
-      i++;
-    }
-    (node->value)++;
-    node = trie;
-  }
-}
-
-/* Dump the trie to a list of Word structures with counts. */
-int dump(Node *trie, Word *words[]) {
-  static int ind = 0;
-
-  int val = trie->value;
-  if (val) // If we are at word end...
-  {
-    words[ind] =
-        words[0] + ind; // Reserve new Word; to check that not ind*sizeof(Word)
-    words[ind]->count = val; // ...save the value to counts...
-    ind++;                   // ...and increase the index to counts
-  }
-
-  int appendfrom = ind;        // using "windows" for appending the first letter
-  for (int i = 0; i < 26; i++) // "for each letter a-z"
-  {
-    Node *n = trie->child[i];
-    if (n != NULL) {
-      dump(n, words); // add tails after node n to wordlist
-
-      char c = 97 + i; // The letter corresponding to child node n
-
-      for (int j = appendfrom; j < ind; j++) {
-        // append c to words[j] ==> CHECK POINTERS
-        char buffer[20] = "";
-        strcpy(buffer, words[j]->word);
-        words[j]->word[0] = c;
-        words[j]->word[1] = 0;
-        strcat(words[j]->word, buffer);
+    Node *node = trie;
+    size_t wordlength = 0;
+    while (i < length && letter((unsigned char)text[i])) {
+      /* Reserve one byte in each result for its terminating NUL. Checking here
+       * also bounds recursion depth during reconstruction. */
+      if (++wordlength >= MAXWORDLENGTH)
+        return COUNTER_WORD_TOO_LONG;
+      unsigned int c = toInd((unsigned char)text[i]);
+      if (node->child[c] == NULL) {
+        Node *child = newnode(arena);
+        if (child == NULL)
+          return COUNTER_ARENA_FULL;
+        node->child[c] = child;
       }
-      appendfrom = ind;
+      node = node->child[c];
+      ++i;
+    }
+    /* Do not let a very frequent word overflow the signed count field. */
+    if (node->value == INT_MAX)
+      return COUNTER_COUNT_OVERFLOW;
+    ++node->value;
+  }
+  return 0;
+}
+
+/* Reconstruct words bottom-up, visiting terminal nodes before their children
+ * and child slots in a-z order. The resulting pointer array is alphabetical.
+ * A terminal node emits an empty suffix; each returning parent prepends its
+ * edge's letter to the words emitted by that child. */
+static int dump(const Node *trie, Output *output) {
+  if (trie->value) {
+    if (output->used >= MAXUNIQUEWORDS)
+      return COUNTER_TOO_MANY_WORDS;
+    /* Pointer arithmetic advances by Word structures, not bytes. */
+    Word *word = &output->heap[output->used];
+    word->word[0] = '\0'; /* Output buffers need not be zero-initialized. */
+    word->count = trie->value;
+    output->words[output->used++] = word;
+  }
+
+  /* Only results in this child's output window receive its leading letter.
+   * Exclude a word ending at this node and results from earlier siblings. */
+  size_t appendfrom = output->used;
+  for (int i = 0; i < 26; ++i) {
+    const Node *child = trie->child[i];
+    if (child != NULL) {
+      int status = dump(child, output);
+      if (status < 0)
+        return status;
+      for (size_t j = appendfrom; j < output->used; ++j) {
+        /* Preserve the suffix before writing the new first letter. */
+        char buffer[MAXWORDLENGTH];
+        strcpy(buffer, output->words[j]->word);
+        output->words[j]->word[0] = (char)('a' + i);
+        output->words[j]->word[1] = '\0';
+        /* fill has already checked the length of every complete word. */
+        strcat(output->words[j]->word, buffer);
+      }
+      appendfrom = output->used;
     }
   }
-  return (ind); // Number of unique words
+  return 0;
+}
+
+/* Length-delimited entry point used by the Haskell ByteString wrapper.
+ * text: input bytes, borrowed for this call only;
+ * words: caller-owned array of pointers to emitted Word structures;
+ * wordheap: caller-owned storage for those structures.
+ * Both output arrays must have MAXUNIQUEWORDS entries (see the public header).
+ * This function allocates and frees only the internal trie arena. */
+int counts_n(const char *text, size_t length, Word **words, Word *wordheap) {
+  if ((text == NULL && length != 0) || words == NULL || wordheap == NULL)
+    return COUNTER_INVALID_ARGUMENT;
+
+  Node *nodeheap = calloc(MAXTRIESIZE, sizeof(*nodeheap));
+  if (nodeheap == NULL)
+    return COUNTER_NO_MEMORY;
+  /* All mutable traversal/allocation state belongs to this invocation. */
+  Arena arena = {nodeheap, nodeheap + MAXTRIESIZE};
+  Output output = {words, wordheap, 0};
+  Node *trie = newnode(&arena);
+  int status = trie == NULL ? COUNTER_ARENA_FULL
+                           : fill(&arena, trie, text, length);
+  if (status == 0)
+    status = dump(trie, &output);
+  /* Free the arena on both success and failure. Output on failure is partial
+   * and must be discarded; the caller still owns and frees its two buffers. */
+  free(nodeheap);
+  return status < 0 ? status : (int)output.used;
+}
+
+/* Compatibility entry point for callers using NUL-terminated C strings. */
+int counts(const char *text, Word **words, Word *wordheap) {
+  if (text == NULL)
+    return COUNTER_INVALID_ARGUMENT;
+  return counts_n(text, strlen(text), words, wordheap);
+}
+
+/* Error descriptions are immutable string literals; callers must not free them. */
+const char *counts_error(int code) {
+  switch (code) {
+  case COUNTER_NO_MEMORY: return "cannot allocate trie arena";
+  case COUNTER_ARENA_FULL: return "trie arena capacity exceeded";
+  case COUNTER_WORD_TOO_LONG: return "word exceeds maximum length";
+  case COUNTER_TOO_MANY_WORDS: return "unique-word capacity exceeded";
+  case COUNTER_COUNT_OVERFLOW: return "word count exceeds INT_MAX";
+  case COUNTER_INVALID_ARGUMENT: return "invalid counter argument";
+  default: return "unknown counter error";
+  }
 }

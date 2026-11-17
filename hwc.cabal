@@ -1,5 +1,5 @@
 name:                hwc
-version:             0.3.9.0
+version:             0.3.9.1
 synopsis:            Testing different word counting algorithms in Haskell
 description:         Please see README.md
 homepage:            https://github.com/JBons/Haskell-wordcount#readme
@@ -13,6 +13,8 @@ build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 Extra-source-files:
+  test/counterlib_test.c
+  test/test_counterlib.sh
 
 
 library

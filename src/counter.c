@@ -55,9 +55,17 @@ int main(int argc, char *argv[])
 
     /* Read source data string into memory just allocated */
     FILE *file = fopen(filePath,"r");
+    if (file == NULL)
+    {
+        perror("Cannot open input");
+        free(text);
+        return 1;
+    }
     if (fread(text, sizeof(char), fileSize, file) != fileSize)
     {
         printf("Error reading the file.");
+        fclose(file);
+        free(text);
         return(-1);
     }
     fclose(file);
@@ -66,9 +74,22 @@ int main(int argc, char *argv[])
     /* Allocate space for words and set array of pointers to the words */
     Word *wordHeap = calloc(MAXUNIQUEWORDS, sizeof(Word));
     Word *words[MAXUNIQUEWORDS];
+    if (wordHeap == NULL)
+    {
+        fprintf(stderr, "Cannot allocate output words\n");
+        free(text);
+        return 1;
+    }
 
     /* Get counts of all words in the text; wc = number of unique words */
-    int wc = counts(text, words, wordHeap);
+    int wc = counts_n(text, fileSize, words, wordHeap);
+    if (wc < 0)
+    {
+        fprintf(stderr, "Counter: %s\n", counts_error(wc));
+        free(text);
+        free(wordHeap);
+        return 1;
+    }
 
     /* Sort the words by frequency */
     qsort(words, wc, sizeof(Word*), compare);

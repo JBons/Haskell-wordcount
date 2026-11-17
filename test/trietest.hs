@@ -65,12 +65,12 @@ textTrieAgreement entries key v =
     textTrie = TTrie.add v (TTrie.fromList [(Text.pack k, n) | (k,n) <- entries]) (Text.pack key)
 
 counterAgreement :: Property
-counterAgreement = forAll (listOf (elements "abcXYZ \n\t,.-")) $ \input ->
+counterAgreement = forAll (listOf (elements "abcXYZ \n\t,.-\0")) $ \input ->
     let text = Text.pack input
         bytes = B.pack input
         expected = sort (ASCII.sCounts bytes)
         asciiCounters = [ASCII.simpleCounts, ASCII.trieCounts, ASCII.mTrieCounts,
-                         ASCII.htCounts, ASCII.eCounts, ASCII.bCounts]
+                         ASCII.htCounts, ASCII.eCounts, ASCII.bCounts, ASCII.cTrieCounts]
         unicodeCounters = [Unicode.simpleCounts, Unicode.trieCounts,
                            Unicode.htCounts, Unicode.eCounts, Unicode.bCounts]
     in conjoin

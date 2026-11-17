@@ -9,6 +9,7 @@
 module Main where
 
 import           Data.List             (sortOn)
+import           Control.Exception     (bracket)
 import           Prelude               hiding (Word)
 import           System.Environment
 import           System.TimeIt
@@ -37,20 +38,26 @@ instance Storable Word where
     alignment _ = 4
 
 foreign import ccall "counterlib.h counts" c_counts :: CString -> Ptr(Ptr Word) -> Ptr () -> IO CInt
+foreign import ccall "counterlib.h counts_error" c_counts_error :: CInt -> IO CString
 
 -- Words of a text together with their frequencies, sorted highest->lowest
+-- withCAString retains the original 8-bit, NUL-terminated input convention.
+-- bracket releases both output buffers on success and on a C/error exception.
 wordFreqs :: String ->  IO [(String,Int)]
-wordFreqs s = do
-    cs   <- newCAString s                            -- Forcing use of 8-bit ASCII strings
-    wpa  <- mallocArray 50000 :: IO (Ptr (Ptr Word)) -- Room for return array of pointers to words
-    heap <- mallocBytes(50000 * 24)                  -- Room for the Word structures
-    wc <- c_counts cs wpa heap
-    let size = fromIntegral wc
-    plist <- peekArray size wpa
-    wordlist <- mapM peek plist
-    let raw = map (\w -> (word w, count w)) wordlist
-    let result = reverse $ sortOn snd raw
-    pure result
+wordFreqs s = withCAString s $ \cs ->
+    bracket (mallocArray 50000) free $ \wpa ->
+    -- MAXUNIQUEWORDS Word records, each 24 bytes with the current C layout.
+    bracket (mallocBytes (50000 * 24)) free $ \heap -> do
+        wc <- c_counts cs wpa heap
+        -- Negative values are CounterError codes, not array lengths.
+        if wc < 0
+            then do
+                message <- c_counts_error wc >>= peekCString
+                ioError (userError ("c_wc: " ++ message))
+            else do
+                plist <- peekArray (fromIntegral wc) wpa
+                wordlist <- mapM peek plist
+                pure (reverse (sortOn snd [(word w, count w) | w <- wordlist]))
 
 main :: IO ()
 main = timeIt proc --get running time
